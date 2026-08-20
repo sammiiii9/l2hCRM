@@ -1,0 +1,684 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  phone         String?   @unique
+  staffCode     String?   @unique
+  passwordHash  String
+  avatar        String?
+  roleId        String
+  role          Role      @relation(fields: [roleId], references: [id])
+  status        String    @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED, PENDING_APPROVAL, REJECTED
+  teamName      String?   @default("Team Alpha")
+  designation   String?   @default("Associate")
+  lastLoginAt   DateTime?
+  
+  // Registration & Approval
+  dateOfJoining DateTime?
+  teamLeadName  String?
+  authProvider  String?   @default("EMAIL") // EMAIL, GOOGLE
+  approvalNotes String?
+  approvedAt    DateTime?
+  approvedById  String?
+
+  // Workload & Matchmaking
+  maxActiveLeadLoad      Int      @default(50)
+  specializationLocation String?  @default("Noida")
+  specializationProperty String?  @default("RESIDENTIAL_APARTMENT")
+  isAvailable            Boolean  @default(true)
+
+  isDeleted     Boolean   @default(false)
+  deletedAt     DateTime?
+  deletedBy     String?
+  deletedReason String?
+
+  assignedLeads     Lead[]              @relation("AssignedLeads")
+  createdLeads      Lead[]              @relation("CreatedLeads")
+  assignedFollowUps FollowUp[]          @relation("AssignedFollowUps")
+  callLogs          CallLog[]
+  assignedVisits    SiteVisit[]         @relation("AssignedVisits")
+  assignedCustomers Customer[]          @relation("AssignedCustomers")
+  createdCustomers  Customer[]          @relation("CreatedCustomers")
+  assignedBookings  Booking[]           @relation("AssignedBookings")
+  createdBookings   Booking[]           @relation("CreatedBookings")
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  userPermissions   UserPermission[]
+  assignedAlerts    AdminAlert[]        @relation("AssignedAlerts")
+  resolvedAlerts    AdminAlert[]        @relation("ResolvedAlerts")
+  dailyReports      DailyActivityReport[] @relation("UserDailyReports")
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([email])
+  @@index([staffCode])
+  @@index([roleId])
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  slug        String           @unique // ADMIN, TEAM_LEAD, MEMBER
+  description String?
+  isSystem    Boolean          @default(false)
+  users       User[]
+  permissions RolePermission[]
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique // e.g. leads.view, leads.create, leads.assign, projects.manage
+  module          String           // LEADS, PROJECTS, INVENTORY, BOOKINGS, USERS, REPORTS, SETTINGS, CALLS, AUTOMATION
+  description     String?
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([module])
+  @@index([slug])
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+}
+
+model UserPermission {
+  id           String     @id @default(cuid())
+  userId       String
+  permissionId String
+  isGranted    Boolean    @default(true) // override: true = grant, false = revoke
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, permissionId])
+}
+
+model Lead {
+  id                String         @id @default(cuid())
+  leadCode          String         @unique // LD-1001
+  name              String
+  phone             String
+  whatsapp          String?
+  email             String?
+  source            String         @default("CALL_FLOOR") // CALL_FLOOR, DIGITAL_AD, WEBSITE, REFERRAL, 99ACRES, MAGICBRICKS, HOUSING
+  campaign          String?        @default("Q3 Growth Drive")
+  
+  assignedToId      String?
+  assignedTo        User?          @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  createdById       String?
+  createdBy         User?          @relation("CreatedLeads", fields: [createdById], references: [id])
+
+  status            String         @default("NEW") // NEW, CONTACTED, QUALIFIED, SITE_VISIT_SCHEDULED, SITE_VISIT_DONE, NEGOTIATION, BOOKED, WON, LOST, NOT_INTERESTED, FOLLOW_UP_LATER
+  stage             String         @default("TO_WORK") // TO_WORK, SUSPECT, PROSPECT, NOT_PICKED, NOT_INTERESTED, ARCHIVED
+  priority          String         @default("WARM") // HOT, WARM, COLD
+  
+  budget            String?        // e.g. "₹50 Lakhs - ₹75 Lakhs"
+  budgetMin         Float?         @default(0)
+  budgetMax         Float?         @default(0)
+  preferredLocation String?        // e.g. "Noida Sector 150", "Gurugram"
+  propertyType      String?        @default("RESIDENTIAL_APARTMENT") // RESIDENTIAL_APARTMENT, VILLA, COMMERCIAL, PLOT, PENTHOUSE
+  purpose           String?        @default("SELF_USE") // INVESTMENT, SELF_USE
+  configuration     String?        @default("3BHK") // 1BHK, 2BHK, 3BHK, 4BHK, STUDIO, PENTHOUSE
+  requirementNotes  String?
+  
+  projectInterestId String?
+  projectInterest   Project?       @relation(fields: [projectInterestId], references: [id])
+  
+  // Explainable Lead Scoring & Daily Briefing Ranking
+  leadScore         Int            @default(50) // 0 to 100
+  scoreBreakdown    String?        // JSON string explaining the score components
+  priorityRankScore Float          @default(50) // 0 to 100 calculated for daily briefing
+  buyingTimeline    String?        @default("0_3_MONTHS") // IMMEDIATE, 0_3_MONTHS, 3_6_MONTHS, 6_12_MONTHS, UNKNOWN
+  engagementScore   Int            @default(0)
+  lastActivityAt    DateTime?      @default(now())
+
+  // Deduplication & Merging
+  isDuplicate       Boolean        @default(false)
+  duplicateOfId     String?
+  mergedIntoId      String?
+  
+  lastContactedAt   DateTime?
+  nextFollowUpDate  DateTime?
+  latestRemarks     String?
+  tags              String?        // comma-separated tags e.g. "Investor,Ready-to-move,Noida"
+
+  isDeleted         Boolean        @default(false)
+  deletedAt         DateTime?
+  deletedBy         String?
+  deletedReason     String?
+
+  activities        LeadActivity[]
+  callLogs          CallLog[]
+  followUps         FollowUp[]
+  siteVisits        SiteVisit[]
+  bookings          Booking[]
+  scoreHistory      LeadScoreHistory[]
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([phone])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([stage])
+  @@index([priority])
+  @@index([leadScore])
+  @@index([priorityRankScore])
+  @@index([lastActivityAt])
+  @@index([isDeleted])
+}
+
+model LeadScoreHistory {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  oldScore    Int
+  newScore    Int
+  category    String   // HOT, WARM, COLD
+  reason      String
+  breakdown   String?  // JSON string
+  createdAt   DateTime @default(now())
+
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+model LeadActivity {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId      String?
+  type        String   // STATUS_CHANGE, CALL_LOGGED, NOTE_ADDED, FOLLOWUP_SCHEDULED, ASSIGNMENT_CHANGED, STAGE_CHANGED, SITE_VISIT_SCHEDULED, BOOKING_CREATED, AUTOMATION_TRIGGERED, LEAD_MERGED, SCORE_UPDATED
+  title       String
+  description String?
+  metadata    String?  // JSON string
+  isAutomated Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+model CallLog {
+  id               String    @id @default(cuid())
+  leadId           String
+  lead             Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+  callDate         DateTime  @default(now())
+  durationSeconds  Int       @default(0)
+  outcome          String    // CONNECTED, BUSY, NO_ANSWER, SWITCHED_OFF, INTERESTED, NOT_INTERESTED, CALL_BACK, WRONG_NUMBER, QUALIFIED, SITE_VISIT_AGREED
+  remarks          String?
+  nextFollowUpDate DateTime?
+
+  createdAt        DateTime  @default(now())
+
+  @@index([leadId])
+  @@index([userId])
+  @@index([outcome])
+  @@index([callDate])
+}
+
+model FollowUp {
+  id              String    @id @default(cuid())
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedToId    String
+  assignedTo      User      @relation("AssignedFollowUps", fields: [assignedToId], references: [id])
+  scheduledAt     DateTime
+  completedAt     DateTime?
+  status          String    @default("PENDING") // PENDING, COMPLETED, RESCHEDULED, MISSED, CANCELLED
+  priority        String    @default("MEDIUM")  // HIGH, MEDIUM, LOW
+  outcomeRemarks  String?
+  
+  // Automation & Escalation
+  isAutomated     Boolean   @default(false)
+  escalationLevel Int       @default(0) // 0 = None, 1 = Agent, 2 = Manager, 3 = Critical
+  lastEscalatedAt DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([assignedToId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([escalationLevel])
+}
+
+model SiteVisit {
+  id            String    @id @default(cuid())
+  leadId        String
+  lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id])
+  assignedToId  String
+  assignedTo    User      @relation("AssignedVisits", fields: [assignedToId], references: [id])
+  scheduledDate DateTime
+  status        String    @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED, NO_SHOW
+  feedback      String?
+  rating        Int?      @default(5)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([projectId])
+  @@index([assignedToId])
+  @@index([scheduledDate])
+  @@index([status])
+}
+
+model Customer {
+  id             String                @id @default(cuid())
+  customerCode   String                @unique // CUST-2001
+  name           String
+  phone          String
+  whatsapp       String?
+  email          String?
+  panNumber      String?
+  aadharNumber   String?
+  currentAddress String?
+  city           String?               @default("Noida")
+  state          String?               @default("Uttar Pradesh")
+  pincode        String?
+  occupation     String?
+  annualIncome   Float?
+  
+  assignedToId   String?
+  assignedTo     User?                 @relation("AssignedCustomers", fields: [assignedToId], references: [id])
+  createdById    String?
+  createdBy      User?                 @relation("CreatedCustomers", fields: [createdById], references: [id])
+
+  isDeleted      Boolean               @default(false)
+  deletedAt      DateTime?
+  deletedBy      String?
+  deletedReason  String?
+
+  requirements   CustomerRequirement[]
+  bookings       Booking[]
+
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([phone])
+  @@index([assignedToId])
+  @@index([isDeleted])
+}
+
+model CustomerRequirement {
+  id                String   @id @default(cuid())
+  customerId        String
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  propertyType      String?  @default("RESIDENTIAL_APARTMENT")
+  budgetMin         Float?   @default(0)
+  budgetMax         Float?   @default(0)
+  preferredLocation String?
+  configuration     String?  @default("3BHK")
+  purpose           String?  @default("SELF_USE")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model Developer {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  logo          String?
+  contactPerson String?
+  contactPhone  String?
+  email         String?
+  website       String?
+  description   String?
+  projects      Project[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Project {
+  id            String          @id @default(cuid())
+  projectCode   String          @unique // PRJ-101
+  name          String
+  developerId   String?
+  developer     Developer?      @relation(fields: [developerId], references: [id])
+  location      String          // e.g. "Sector 150, Noida Express Highway"
+  address       String?
+  city          String          @default("Noida")
+  state         String          @default("Uttar Pradesh")
+  pincode       String?
+  propertyType  String          @default("RESIDENTIAL") // RESIDENTIAL, COMMERCIAL, MIXED_USE, TOWNSHIP
+  projectType   String          @default("UNDER_CONSTRUCTION") // UNDER_CONSTRUCTION, READY_TO_MOVE, NEW_LAUNCH
+  status        String          @default("ACTIVE") // ACTIVE, UPCOMING, COMPLETED, ON_HOLD
+  launchDate    DateTime?
+  possessionDate DateTime?
+  priceRangeMin Float           @default(5000000)
+  priceRangeMax Float           @default(35000000)
+  reraNumber    String?
+  totalUnits    Int             @default(120)
+  availableUnits Int            @default(45)
+  amenities     String?         // JSON array or comma list: "Clubhouse,Swimming Pool,Gym,Golf Course,24x7 Power"
+  connectivity  String?         // "Near Metro Station, 15 min to Jewar Airport"
+  description   String?
+  coverImage    String?
+  brochureUrl   String?
+  floorPlanUrl  String?
+
+  isDeleted     Boolean         @default(false)
+  deletedAt     DateTime?
+  deletedBy     String?
+  deletedReason String?
+
+  inventory     InventoryUnit[]
+  siteVisits    SiteVisit[]
+  leads         Lead[]
+  bookings      Booking[]
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([city])
+  @@index([status])
+  @@index([propertyType])
+  @@index([isDeleted])
+}
+
+model InventoryUnit {
+  id                  String    @id @default(cuid())
+  projectId           String
+  project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  unitNumber          String    // e.g. "T1-1402"
+  tower               String    // e.g. "Tower 1"
+  floor               Int       // e.g. 14
+  configuration       String    // 2BHK, 3BHK, 4BHK, PENTHOUSE
+  carpetArea          Float     // sq ft
+  superArea           Float     // sq ft
+  facing              String?   @default("Park / Green Facing")
+  view                String?   @default("Club View")
+  basePrice           Float     // Base cost in INR
+  plcCharges          Float     @default(0) // Preferential location charges
+  parkingCharges      Float     @default(300000)
+  floorRiseCharges    Float     @default(0)
+  totalCalculatedPrice Float
+  status              String    @default("AVAILABLE") // AVAILABLE, HOLD, BOOKED, SOLD, BLOCKED
+  lockedById          String?
+  lockedAt            DateTime?
+  version             Int       @default(1) // For optimistic locking
+
+  bookings            Booking[]
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([projectId, unitNumber])
+  @@index([projectId])
+  @@index([status])
+  @@index([configuration])
+}
+
+model Booking {
+  id                   String        @id @default(cuid())
+  bookingCode          String        @unique // BK-5001
+  customerId           String
+  customer             Customer      @relation(fields: [customerId], references: [id])
+  leadId               String?
+  lead                 Lead?         @relation(fields: [leadId], references: [id])
+  projectId            String
+  project              Project       @relation(fields: [projectId], references: [id])
+  inventoryUnitId      String
+  inventoryUnit        InventoryUnit @relation(fields: [inventoryUnitId], references: [id])
+  
+  assignedMemberId     String
+  assignedMember       User          @relation("AssignedBookings", fields: [assignedMemberId], references: [id])
+  createdById          String
+  createdBy            User          @relation("CreatedBookings", fields: [createdById], references: [id])
+
+  bookingDate          DateTime      @default(now())
+  status               String        @default("TOKEN_PAID") // REQUESTED, TOKEN_PAID, CONFIRMED, DOCUMENTATION, PAYMENT_IN_PROGRESS, REGISTERED, COMPLETED, CANCELLED
+  totalDealValue       Float
+  tokenAmountPaid      Float
+  balanceAmount        Float
+  paymentPlan          String?       @default("Construction Linked Plan (CLP)")
+  commissionPercentage Float         @default(2.5) // % commission
+  commissionAmount     Float         @default(0)
+
+  cancelledAt          DateTime?
+  cancellationReason   String?
+
+  isDeleted            Boolean       @default(false)
+  deletedAt            DateTime?
+  deletedBy            String?
+  deletedReason        String?
+
+  payments             Payment[]
+
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([customerId])
+  @@index([projectId])
+  @@index([inventoryUnitId])
+  @@index([assignedMemberId])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  paymentNumber  String   @unique // RCPT-1001
+  bookingId      String
+  booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  paymentDate    DateTime @default(now())
+  amount         Float
+  paymentMethod  String   @default("BANK_TRANSFER") // BANK_TRANSFER, CHEQUE, UPI, CARD, CASH
+  transactionRef String?
+  paymentStage   String   @default("TOKEN") // TOKEN, BOOKING_AMOUNT, INSTALLMENT, FINAL_SETTLEMENT
+  status         String   @default("CLEARED") // PENDING, CLEARED, BOUNCED, REFUNDED
+  receiptUrl     String?
+  remarks        String?
+  createdById    String?
+
+  createdAt      DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([paymentStage])
+  @@index([status])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  userName     String?
+  userRole     String?
+  action       String   // CREATE, UPDATE, DELETE, RESTORE, LOGIN, LOGOUT, REASSIGN, STAGE_CHANGE, STATUS_LOCK, AUTOMATION_EXECUTION, LEAD_MERGE, ESCALATION
+  entity       String   // LEAD, USER, PROJECT, INVENTORY, BOOKING, CALL, FOLLOWUP, SETTING, AUTOMATION, ALERT
+  entityId     String?
+  entityCode   String?
+  fieldChanged String?
+  oldValue     String?
+  newValue     String?
+  ipAddress    String?  @default("127.0.0.1")
+  userAgent    String?
+  metadata     String?  // JSON string
+  isAutomated  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  category    String   @default("GENERAL") // GENERAL, NOTIFICATIONS, CALL_FLOOR, INTEGRATIONS, RBAC, AUTOMATION
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("INFO") // LEAD_ASSIGNED, FOLLOWUP_REMINDER, OVERDUE_ALERT, BOOKING_UPDATE, SYSTEM_ANNOUNCEMENT, ESCALATION_ALERT, DUPLICATE_ALERT
+  isRead    Boolean  @default(false)
+  linkUrl   String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+// ----------------------------------------------------
+// AUTOMATION & EVENT ENGINE MODELS
+// ----------------------------------------------------
+
+model AutomationRule {
+  id                String   @id @default(cuid())
+  eventType         String   // e.g. site_visit.completed, lead.qualified, lead.negotiation, followup.overdue, lead.inactivity
+  name              String
+  description       String?
+  isEnabled         Boolean  @default(true)
+  triggerConditions String?  // JSON string: e.g. { "stage": "QUALIFIED", "minBudget": 5000000 }
+  actionPayload     String?  // JSON string: e.g. { "action": "CREATE_FOLLOWUP", "delayDays": 1, "time": "11:00", "priority": "HIGH" }
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([eventType])
+  @@index([isEnabled])
+}
+
+model AutomationExecution {
+  id             String   @id @default(cuid())
+  eventType      String
+  eventId        String?
+  ruleId         String?
+  entity         String   // LEAD, FOLLOWUP, BOOKING, SITE_VISIT
+  entityId       String
+  status         String   @default("SUCCESS") // SUCCESS, SKIPPED, FAILED
+  idempotencyKey String   @unique
+  executedActions String? // JSON string of performed actions
+  error          String?
+  createdAt      DateTime @default(now())
+
+  @@index([eventType])
+  @@index([entityId])
+  @@index([createdAt])
+}
+
+model AdminAlert {
+  id                String    @id @default(cuid())
+  severity          String    @default("WARNING") // CRITICAL, WARNING, INFO
+  category          String    // UNASSIGNED_LEAD, HOT_INACTIVE, OVERDUE_ESCALATION, HIGH_VALUE_LEAD, BOOKING_CANCELLED, INVENTORY_CHANGE
+  title             String
+  description       String
+  entity            String    // LEAD, BOOKING, INVENTORY, FOLLOWUP
+  entityId          String?
+  entityCode        String?
+  recommendedAction String?
+  linkUrl           String?
+  status            String    @default("OPEN") // OPEN, RESOLVED, DISMISSED
+  
+  assignedToId      String?
+  assignedTo        User?     @relation("AssignedAlerts", fields: [assignedToId], references: [id])
+  resolvedById      String?
+  resolvedBy        User?     @relation("ResolvedAlerts", fields: [resolvedById], references: [id])
+  resolvedAt        DateTime?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([severity])
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model EscalationLog {
+  id                 String   @id @default(cuid())
+  leadId             String
+  followUpId         String?
+  level              String   // LEVEL_1, LEVEL_2, LEVEL_3
+  reason             String
+  previousAssigneeId String?
+  newAssigneeId      String?
+  status             String   @default("ESCALATED") // ESCALATED, REASSIGNED, RESOLVED
+  metadata           String?  // JSON string
+  createdAt          DateTime @default(now())
+
+  @@index([leadId])
+  @@index([level])
+  @@index([createdAt])
+}
+
+// ----------------------------------------------------
+// DAILY ACTIVITY REPORT (DAR) MODEL
+// ----------------------------------------------------
+
+model DailyActivityReport {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation("UserDailyReports", fields: [userId], references: [id], onDelete: Cascade)
+  reportDate         DateTime  // Start of day DateTime in IST
+  dateString         String    // YYYY-MM-DD string for indexing and unique constraint
+  
+  // 6 Required Activity Metrics
+  calls              Int       @default(0)
+  talkTimeMinutes    Int       @default(0) // Talk time in minutes
+  prospects          Int       @default(0)
+  suspects           Int       @default(0)
+  meetings           Int       @default(0)
+  visits             Int       @default(0)
+  
+  // Mandatory Callyzer Report Screenshot
+  callyzerScreenshot String    // Base64 data URI or image URL
+  callyzerFileName   String?
+  callyzerFileSize   Int?      // In bytes
+  
+  status             String    @default("SUBMITTED") // SUBMITTED, REVIEWED, FLAGGED
+  remarks            String?
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([userId, dateString])
+  @@index([userId])
+  @@index([dateString])
+  @@index([reportDate])
+  @@index([status])
+}
+
