@@ -36,9 +36,9 @@ export function invalidateCache(keyPrefix?: string) {
     memoryCache.clear();
     return;
   }
-  for (const key of memoryCache.keys()) {
+  Array.from(memoryCache.keys()).forEach((key) => {
     if (key.startsWith(keyPrefix)) {
       memoryCache.delete(key);
     }
-  }
+  });
 }
