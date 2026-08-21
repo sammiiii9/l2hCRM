@@ -6,19 +6,13 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
   Sparkles,
-  Lock,
   ArrowRight,
-  Shield,
-  UserCheck,
-  Building2,
-  PhoneCall,
-  CheckCircle2,
 } from "lucide-react";
 import { L2HLogo } from "@/components/ui/L2HLogo";
 
 export default function LoginPage() {
-  const [identifier, setIdentifier] = useState("8439654385"); // Default to Shahrukh's phone/staffCode
-  const [password, setPassword] = useState("agent123");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [googleModalOpen, setGoogleModalOpen] = useState(false);
@@ -78,12 +72,6 @@ export default function LoginPage() {
       setLoading(false);
       setGoogleModalOpen(false);
     }
-  };
-
-  const setDemoUser = (ident: string, pass: string) => {
-    setIdentifier(ident);
-    setPassword(pass);
-    setError("");
   };
 
   return (
@@ -258,62 +246,6 @@ export default function LoginPage() {
               Protected by L2H Role-Based Access Control (RBAC).
             </p>
           </form>
-
-          {/* 1-Click Demo Accounts */}
-          <div className="pt-6 border-t border-zinc-200">
-            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3 text-center lg:text-left">
-              ⚡ 1-Click Demo Accounts
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => setDemoUser("8439654385", "agent123")}
-                className="p-3 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 hover:border-black rounded-xl text-left transition duration-200 group"
-              >
-                <div className="flex items-center text-xs font-bold text-zinc-900 group-hover:text-black truncate">
-                  <Shield className="w-3.5 h-3.5 mr-1.5 text-zinc-700 shrink-0" />
-                  Shahrukh (Admin)
-                </div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">8439654385</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDemoUser("shahnawaz@l2hcrm.com", "admin123")}
-                className="p-3 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 hover:border-black rounded-xl text-left transition duration-200 group"
-              >
-                <div className="flex items-center text-xs font-bold text-zinc-900 group-hover:text-black truncate">
-                  <Shield className="w-3.5 h-3.5 mr-1.5 text-zinc-700 shrink-0" />
-                  Shahnawaz (Admin)
-                </div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">shahnawaz@l2hcrm.com</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDemoUser("anamika@l2hcrm.com", "agent123")}
-                className="p-3 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 hover:border-black rounded-xl text-left transition duration-200 group"
-              >
-                <div className="flex items-center text-xs font-bold text-zinc-900 group-hover:text-black truncate">
-                  <UserCheck className="w-3.5 h-3.5 mr-1.5 text-zinc-700 shrink-0" />
-                  Anamika (Associate)
-                </div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">anamika@l2hcrm.com</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDemoUser("admin@l2hcrm.com", "admin123")}
-                className="p-3 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 hover:border-black rounded-xl text-left transition duration-200 group"
-              >
-                <div className="flex items-center text-xs font-bold text-zinc-900 group-hover:text-black truncate">
-                  <Shield className="w-3.5 h-3.5 mr-1.5 text-zinc-700 shrink-0" />
-                  Master Admin
-                </div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">admin@l2hcrm.com</div>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -351,61 +283,27 @@ export default function LoginPage() {
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <p className="text-xs text-zinc-500">
-                Select your verified Google Account to access the workspace:
+                Enter your verified Google Workspace email address to sign in:
               </p>
 
-              <button
-                type="button"
-                onClick={() => handleGoogleLogin("shahrukh.ali@l2hsolution.com", "Shahrukh Ali")}
-                className="w-full flex items-center justify-between p-3 rounded-2xl border border-zinc-200 hover:border-black hover:bg-zinc-50 transition text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-zinc-900 text-white font-bold text-xs flex items-center justify-center">
-                    SA
-                  </div>
-                  <div>
-                    <div className="font-bold text-xs text-zinc-900">Shahrukh Ali</div>
-                    <div className="text-[10px] text-zinc-500 font-mono">shahrukh.ali@l2hsolution.com</div>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold uppercase text-zinc-400">Team Lead</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleGoogleLogin("shahnawaz.khan@l2hsolution.com", "Shahnawaz Khan")}
-                className="w-full flex items-center justify-between p-3 rounded-2xl border border-zinc-200 hover:border-black hover:bg-zinc-50 transition text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-zinc-900 text-white font-bold text-xs flex items-center justify-center">
-                    SK
-                  </div>
-                  <div>
-                    <div className="font-bold text-xs text-zinc-900">Shahnawaz Khan</div>
-                    <div className="text-[10px] text-zinc-500 font-mono">shahnawaz.khan@l2hsolution.com</div>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold uppercase text-zinc-400">Team Lead</span>
-              </button>
-
-              <div className="pt-2 border-t border-zinc-100 space-y-2">
-                <label className="text-[11px] font-bold text-zinc-700">Or enter your Google Email:</label>
+              <div className="space-y-3">
                 <input
                   type="email"
-                  placeholder="name@l2hsolution.com"
+                  required
+                  placeholder="e.g. yourname@l2hsolution.com or gmail.com"
                   value={googleCustomEmail}
                   onChange={(e) => setGoogleCustomEmail(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs focus:ring-1 focus:ring-black font-mono"
+                  className="w-full px-4 py-3 rounded-xl border border-zinc-300 text-sm focus:ring-1 focus:ring-black font-medium text-zinc-900 outline-none"
                 />
                 <button
                   type="button"
                   disabled={!googleCustomEmail || loading}
-                  onClick={() => handleGoogleLogin(googleCustomEmail, "Google User")}
-                  className="w-full py-2.5 bg-black hover:bg-zinc-800 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition"
+                  onClick={() => handleGoogleLogin(googleCustomEmail, googleCustomEmail.split("@")[0])}
+                  className="w-full py-3.5 bg-black hover:bg-zinc-800 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-md"
                 >
-                  {loading ? "Authenticating..." : "Sign in with Google →"}
+                  {loading ? "Authenticating..." : "Continue with Google →"}
                 </button>
               </div>
             </div>
