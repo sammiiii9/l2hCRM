@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getCurrentUser, AUTH_COOKIE_OPTIONS } from "@/lib/auth";
 import { successResponse, unauthorizedResponse, errorResponse } from "@/lib/api-response";
 

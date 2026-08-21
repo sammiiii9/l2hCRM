@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { runPeriodicAutomations } from "@/lib/automation/scheduler";
