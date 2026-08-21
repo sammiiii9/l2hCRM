@@ -41,6 +41,8 @@ export function Navbar() {
     leadCode?: string;
   } | null>(null);
 
+  const isPollingEnabled = !!user && pathname !== "/login" && pathname !== "/signup";
+
   const {
     notifications,
     unreadCount,
@@ -52,7 +54,7 @@ export function Navbar() {
     markAsRead,
     markAllAsRead,
     refreshNotifications,
-  } = useNotificationSystem();
+  } = useNotificationSystem(isPollingEnabled);
 
   if (pathname === "/login" || pathname === "/signup") return null;
 

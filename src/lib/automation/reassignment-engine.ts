@@ -173,7 +173,7 @@ export async function executeSafeLeadReassignment(options: ReassignmentOptions) 
         linkUrl: `/leads/${lead.id}`,
       },
     });
-  });
+  }, { maxWait: 20000, timeout: 45000 });
 
   return {
     success: true,

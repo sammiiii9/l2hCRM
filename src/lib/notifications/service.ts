@@ -49,6 +49,32 @@ export async function checkDueFollowUpReminders(userId: string): Promise<DueRemi
     },
   });
 
+  // Batch check existing notifications to avoid N+1 query overhead
+  const recentNotifications = await prisma.notification.findMany({
+    where: {
+      userId,
+      createdAt: {
+        gte: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      },
+    },
+    select: {
+      linkUrl: true,
+      type: true,
+    },
+  });
+
+  const existingNotificationMap = new Set(
+    recentNotifications.map((n) => `${n.type}:${n.linkUrl}`)
+  );
+
+  const notificationsToCreate: Array<{
+    userId: string;
+    title: string;
+    message: string;
+    type: string;
+    linkUrl: string;
+  }> = [];
+
   const dueItems: DueReminderItem[] = [];
 
   for (const f of followUps) {
@@ -78,29 +104,25 @@ export async function checkDueFollowUpReminders(userId: string): Promise<DueRemi
       message,
     });
 
-    // Check if an in-app notification already exists for this follow-up in the last 2 hours
-    const recentNotification = await prisma.notification.findFirst({
-      where: {
-        userId,
-        linkUrl: `/leads/${f.lead.id}`,
-        createdAt: {
-          gte: new Date(now.getTime() - 2 * 60 * 60 * 1000),
-        },
-        type: isOverdue ? "OVERDUE_ALERT" : "FOLLOWUP_REMINDER",
-      },
-    });
+    const notifType = isOverdue ? "OVERDUE_ALERT" : "FOLLOWUP_REMINDER";
+    const notifKey = `${notifType}:/leads/${f.lead.id}`;
 
-    if (!recentNotification) {
-      await prisma.notification.create({
-        data: {
-          userId,
-          title: isOverdue ? `⚠️ Overdue Follow-up: ${f.lead.name}` : `⏰ Follow-up Due: ${f.lead.name}`,
-          message,
-          type: isOverdue ? "OVERDUE_ALERT" : "FOLLOWUP_REMINDER",
-          linkUrl: `/leads/${f.lead.id}`,
-        },
+    if (!existingNotificationMap.has(notifKey)) {
+      existingNotificationMap.add(notifKey);
+      notificationsToCreate.push({
+        userId,
+        title: isOverdue ? `⚠️ Overdue Follow-up: ${f.lead.name}` : `⏰ Follow-up Due: ${f.lead.name}`,
+        message,
+        type: notifType,
+        linkUrl: `/leads/${f.lead.id}`,
       });
     }
+  }
+
+  if (notificationsToCreate.length > 0) {
+    await prisma.notification.createMany({
+      data: notificationsToCreate,
+    });
   }
 
   return dueItems;

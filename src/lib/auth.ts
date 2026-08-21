@@ -57,19 +57,31 @@ export async function getCurrentUser(req?: any): Promise<SessionUser | null> {
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId, isDeleted: false, status: "ACTIVE" },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        staffCode: true,
+        roleId: true,
+        teamName: true,
+        designation: true,
         role: {
-          include: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
             permissions: {
-              include: {
-                permission: true,
+              select: {
+                permission: { select: { slug: true } },
               },
             },
           },
         },
         userPermissions: {
-          include: {
-            permission: true,
+          select: {
+            isGranted: true,
+            permission: { select: { slug: true } },
           },
         },
       },

@@ -90,8 +90,8 @@ export async function GET(req: NextRequest) {
       where.projectInterestId = projectId;
     }
 
-    // Fetch leads and counts in parallel
-    const [leads, total, toWorkCount, suspectCount, prospectCount, notPickedCount, notInterestedCount] = await Promise.all([
+    // Fetch leads, total and stage breakdown in parallel
+    const [leads, total, stageCountsGroup] = await Promise.all([
       prisma.lead.findMany({
         where,
         include: {
@@ -111,12 +111,25 @@ export async function GET(req: NextRequest) {
         take: limit,
       }),
       prisma.lead.count({ where }),
-      prisma.lead.count({ where: { ...ownershipWhere, isDeleted: false, stage: "TO_WORK" } }),
-      prisma.lead.count({ where: { ...ownershipWhere, isDeleted: false, stage: "SUSPECT" } }),
-      prisma.lead.count({ where: { ...ownershipWhere, isDeleted: false, stage: "PROSPECT" } }),
-      prisma.lead.count({ where: { ...ownershipWhere, isDeleted: false, stage: "NOT_PICKED" } }),
-      prisma.lead.count({ where: { ...ownershipWhere, isDeleted: false, stage: "NOT_INTERESTED" } }),
+      prisma.lead.groupBy({
+        by: ["stage"],
+        where: { ...ownershipWhere, isDeleted: false },
+        _count: { id: true },
+      }),
     ]);
+
+    const stageMap: Record<string, number> = {};
+    let totalAll = 0;
+    for (const g of stageCountsGroup) {
+      stageMap[g.stage] = g._count.id;
+      totalAll += g._count.id;
+    }
+
+    const toWorkCount = stageMap["TO_WORK"] || 0;
+    const suspectCount = stageMap["SUSPECT"] || 0;
+    const prospectCount = stageMap["PROSPECT"] || 0;
+    const notPickedCount = stageMap["NOT_PICKED"] || 0;
+    const notInterestedCount = stageMap["NOT_INTERESTED"] || 0;
 
     return successResponse(leads, "Leads retrieved successfully.", {
       total,
@@ -130,7 +143,7 @@ export async function GET(req: NextRequest) {
           prospect: prospectCount,
           notPicked: notPickedCount,
           notInterested: notInterestedCount,
-          totalAll: toWorkCount + suspectCount + prospectCount + notPickedCount + notInterestedCount,
+          totalAll,
         },
       } as any),
     });

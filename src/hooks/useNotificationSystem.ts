@@ -35,7 +35,7 @@ export interface DueReminder {
   message: string;
 }
 
-export function useNotificationSystem() {
+export function useNotificationSystem(enabled: boolean = true) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [dueReminders, setDueReminders] = useState<DueReminder[]>([]);
@@ -45,6 +45,7 @@ export function useNotificationSystem() {
 
   // Keep track of reminders already alerted to avoid duplicate sounds during the same session
   const alertedReminderIdsRef = useRef<Set<string>>(new Set());
+  const soundEnabledRef = useRef<boolean>(true);
   const isInitialMount = useRef<boolean>(true);
 
   // Initialize permissions and local sound preference
@@ -52,13 +53,16 @@ export function useNotificationSystem() {
     setDesktopPermission(getDesktopNotificationPermission());
     const savedSound = localStorage.getItem("l2h_sound_alerts_enabled");
     if (savedSound !== null) {
-      setSoundEnabled(savedSound === "true");
+      const parsed = savedSound === "true";
+      setSoundEnabled(parsed);
+      soundEnabledRef.current = parsed;
     }
   }, []);
 
   const toggleSound = useCallback(() => {
     setSoundEnabled((prev) => {
       const next = !prev;
+      soundEnabledRef.current = next;
       localStorage.setItem("l2h_sound_alerts_enabled", String(next));
       if (next) {
         playNotificationChime();
@@ -79,6 +83,7 @@ export function useNotificationSystem() {
   }, []);
 
   const fetchNotifications = useCallback(async () => {
+    if (!enabled) return;
     try {
       const res = await fetch("/api/notifications");
       if (!res.ok) return;
@@ -101,7 +106,7 @@ export function useNotificationSystem() {
           newlyDue.forEach((rem) => alertedReminderIdsRef.current.add(rem.id));
 
           // Trigger Sound Alert
-          if (soundEnabled) {
+          if (soundEnabledRef.current) {
             const hasOverdue = newlyDue.some((r) => r.isOverdue);
             if (hasOverdue) {
               playUrgentAlertChime();
@@ -113,7 +118,7 @@ export function useNotificationSystem() {
           // Trigger Browser Desktop Push
           newlyDue.forEach((rem) => {
             sendDesktopNotification(
-              rem.isOverdue ? `⚠️ Overdue Follow-up: ${rem.leadName}` : `⏰ Call Due in ${Math.max(1, rem.minutesRemaining)}m: ${rem.leadName}`,
+              rem.isOverdue ? `⚠️ Overdue Follow-up: ${rem.leadName}` : `⏰ Call Due in ${Math.max(1, diffMins(rem.scheduledAt))}m: ${rem.leadName}`,
               {
                 body: `${rem.message} Phone: ${rem.leadPhone}`,
                 onClickUrl: `/leads/${rem.leadId}?action=call`,
@@ -129,14 +134,19 @@ export function useNotificationSystem() {
       setLoading(false);
       isInitialMount.current = false;
     }
-  }, [soundEnabled]);
+  }, [enabled]);
+
+  function diffMins(scheduledAt: string | Date) {
+    return Math.max(1, Math.round((new Date(scheduledAt).getTime() - Date.now()) / (60 * 1000)));
+  }
 
   // Polling interval (every 30s)
   useEffect(() => {
+    if (!enabled) return;
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [fetchNotifications, enabled]);
 
   const markAsRead = useCallback(async (id: string) => {
     try {

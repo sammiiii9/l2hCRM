@@ -322,7 +322,7 @@ export async function mergeLeads(
         }),
       },
     });
-  });
+  }, { maxWait: 20000, timeout: 45000 });
 
   // 10. Recalculate score on primary lead
   await updateLeadScoreAndHistory(primaryLeadId, "Recalculated after duplicate lead merge");

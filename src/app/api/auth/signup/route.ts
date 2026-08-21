@@ -148,15 +148,15 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    for (const admin of adminUsers) {
-      await prisma.notification.create({
-        data: {
+    if (adminUsers.length > 0) {
+      await prisma.notification.createMany({
+        data: adminUsers.map((admin) => ({
           userId: admin.id,
           title: `👤 New Registration: ${newUser.name}`,
           message: `${newUser.name} (${designation}, ${teamLeadName}) is awaiting account activation.`,
           type: "LEAD_ASSIGNED",
           linkUrl: "/admin?tab=users",
-        },
+        })),
       });
     }
 

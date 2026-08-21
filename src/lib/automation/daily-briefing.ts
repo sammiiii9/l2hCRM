@@ -50,30 +50,35 @@ export async function getDailyAgentBriefing(userId: string, isAllLeads: boolean 
     whereClause.assignedToId = userId;
   }
 
-  const leads = await prisma.lead.findMany({
-    where: whereClause,
-    include: {
-      followUps: {
-        where: { status: "PENDING" },
-        orderBy: { scheduledAt: "asc" },
+  const [leads, callsToday] = await Promise.all([
+    prisma.lead.findMany({
+      where: whereClause,
+      include: {
+        followUps: {
+          where: { status: "PENDING" },
+          orderBy: { scheduledAt: "asc" },
+          take: 3,
+        },
+        callLogs: {
+          orderBy: { callDate: "desc" },
+          take: 2,
+        },
+        siteVisits: {
+          where: { status: "SCHEDULED" },
+          orderBy: { scheduledDate: "asc" },
+          take: 1,
+        },
       },
-      callLogs: {
-        orderBy: { callDate: "desc" },
-        take: 3,
+      orderBy: { priorityRankScore: "desc" },
+      take: 100,
+    }),
+    prisma.callLog.count({
+      where: {
+        userId,
+        callDate: { gte: startOfDay, lte: endOfDay },
       },
-      siteVisits: {
-        orderBy: { scheduledDate: "desc" },
-      },
-    },
-  });
-
-  // Today's calls logged by this user
-  const callsToday = await prisma.callLog.count({
-    where: {
-      userId,
-      callDate: { gte: startOfDay, lte: endOfDay },
-    },
-  });
+    }),
+  ]);
 
   // Calculate Priority Actions for each lead
   const prioritizedList: PrioritizedLeadAction[] = [];

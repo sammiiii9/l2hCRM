@@ -55,11 +55,10 @@ export async function GET(req: NextRequest) {
     } else if (range === "THIS_WEEK") {
       const day = now.getDay();
       const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
-      const startOfWeek = new Date(now.setDate(diff));
-      startOfWeek.setHours(0, 0, 0, 0);
+      const startOfWeek = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0, 0);
       dateFilter = { gte: startOfWeek };
     } else if (range === "THIS_MONTH") {
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       dateFilter = { gte: startOfMonth };
     }
 

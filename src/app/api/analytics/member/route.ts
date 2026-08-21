@@ -14,11 +14,7 @@ export async function GET(req: NextRequest) {
 
     const [
       leadsInToday,
-      totalMyLeads,
-      myProspects,
-      mySuspects,
-      myNotPicked,
-      myNotInterested,
+      stageCountsGroup,
       todayFollowUps,
       overdueFollowUps,
       todayCallsCount,
@@ -35,25 +31,11 @@ export async function GET(req: NextRequest) {
           createdAt: { gte: startOfToday },
         },
       }),
-      // Total My Leads
-      prisma.lead.count({
+      // Consolidated Stage Counts via groupBy
+      prisma.lead.groupBy({
+        by: ["stage"],
         where: { assignedToId: user.id, isDeleted: false },
-      }),
-      // Prospects
-      prisma.lead.count({
-        where: { assignedToId: user.id, isDeleted: false, stage: "PROSPECT" },
-      }),
-      // Suspects
-      prisma.lead.count({
-        where: { assignedToId: user.id, isDeleted: false, stage: "SUSPECT" },
-      }),
-      // Not Picked
-      prisma.lead.count({
-        where: { assignedToId: user.id, isDeleted: false, stage: "NOT_PICKED" },
-      }),
-      // Not Interested
-      prisma.lead.count({
-        where: { assignedToId: user.id, isDeleted: false, stage: "NOT_INTERESTED" },
+        _count: { id: true },
       }),
       // Follow-ups Today
       prisma.followUp.count({
@@ -107,6 +89,17 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    const stageMap: Record<string, number> = {};
+    let totalMyLeads = 0;
+    for (const g of stageCountsGroup) {
+      stageMap[g.stage] = g._count.id;
+      totalMyLeads += g._count.id;
+    }
+
+    const myProspects = stageMap["PROSPECT"] || 0;
+    const mySuspects = stageMap["SUSPECT"] || 0;
+    const myNotPicked = stageMap["NOT_PICKED"] || 0;
+    const myNotInterested = stageMap["NOT_INTERESTED"] || 0;
     const myEarnedCommission = myCommissionResult._sum.commissionAmount || 0;
 
     return successResponse({

@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
           },
         });
       }
-    });
+    }, { maxWait: 20000, timeout: 45000 });
 
     // Audit log
     await createAuditLog({
