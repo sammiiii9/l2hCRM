@@ -76,24 +76,27 @@ export async function POST(req: NextRequest) {
       data: { lastLoginAt: new Date() },
     });
 
-    // Generate JWT token
-    const token = signToken({ userId: user.id });
+    // Construct session user payload
+    const sessionUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      staffCode: user.staffCode,
+      roleId: user.roleId,
+      roleSlug: user.role.slug,
+      roleName: user.role.name,
+      teamName: user.teamName,
+      designation: user.designation,
+      permissions: [],
+    };
+
+    // Generate JWT token with embedded session for 0-latency auth
+    const token = signToken(sessionUser);
 
     // Log audit
     await createAuditLog({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        staffCode: user.staffCode,
-        roleId: user.roleId,
-        roleSlug: user.role.slug,
-        roleName: user.role.name,
-        teamName: user.teamName,
-        designation: user.designation,
-        permissions: [],
-      },
+      user: sessionUser,
       action: "LOGIN",
       entity: "USER",
       entityId: user.id,

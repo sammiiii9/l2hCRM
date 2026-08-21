@@ -103,10 +103,6 @@ export async function GET(req: NextRequest) {
           projectInterest: {
             select: { id: true, name: true, projectCode: true, location: true },
           },
-          callLogs: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
-          },
         },
         orderBy: { updatedAt: "desc" },
         skip,

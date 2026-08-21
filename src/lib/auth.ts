@@ -28,13 +28,14 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
-export function signToken(payload: { userId: string }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+export function signToken(payload: any): string {
+  const tokenData = payload.id ? payload : { userId: payload.userId || payload.id };
+  return jwt.sign(tokenData, JWT_SECRET, { expiresIn: "7d" });
 }
 
-export function verifyToken(token: string): { userId: string } | null {
+export function verifyToken(token: string): any | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { userId: string };
+    return jwt.verify(token, JWT_SECRET);
   } catch (error) {
     return null;
   }
@@ -53,10 +54,30 @@ export async function getCurrentUser(req?: any): Promise<SessionUser | null> {
     if (!token) return null;
 
     const payload = verifyToken(token);
-    if (!payload?.userId) return null;
+    if (!payload) return null;
+
+    // Instant Fast-Path: If full session is in JWT, return with 0 database round-trips!
+    if (payload.id && payload.roleSlug) {
+      return {
+        id: payload.id,
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone || null,
+        staffCode: payload.staffCode || null,
+        roleId: payload.roleId,
+        roleSlug: payload.roleSlug,
+        roleName: payload.roleName,
+        teamName: payload.teamName || null,
+        designation: payload.designation || null,
+        permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
+      };
+    }
+
+    const userId = payload.userId || payload.id;
+    if (!userId) return null;
 
     const user = await prisma.user.findUnique({
-      where: { id: payload.userId, isDeleted: false, status: "ACTIVE" },
+      where: { id: userId, isDeleted: false, status: "ACTIVE" },
       select: {
         id: true,
         name: true,

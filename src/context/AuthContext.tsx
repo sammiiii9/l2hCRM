@@ -33,6 +33,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // Instant optimistic hydration
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("l2h_cached_user");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setUser(parsed);
+        setLoading(false);
+      }
+    } catch (e) {}
+  }, []);
+
   const refreshUser = async () => {
     try {
       const res = await fetch("/api/auth/me");
@@ -40,11 +52,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await res.json();
         if (data.success && data.data?.user) {
           setUser(data.data.user);
+          try {
+            localStorage.setItem("l2h_cached_user", JSON.stringify(data.data.user));
+          } catch (e) {}
         } else {
           setUser(null);
+          localStorage.removeItem("l2h_cached_user");
         }
       } else {
         setUser(null);
+        localStorage.removeItem("l2h_cached_user");
       }
     } catch (err) {
       setUser(null);

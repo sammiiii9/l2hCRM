@@ -28,6 +28,8 @@ const createProjectSchema = z.object({
   coverImage: z.string().optional().nullable(),
 });
 
+import { getOrSetCache, invalidateCache } from "@/lib/cache";
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -56,15 +58,18 @@ export async function GET(req: NextRequest) {
     if (propertyType && propertyType !== "ALL") where.propertyType = propertyType;
     if (status && status !== "ALL") where.status = status;
 
-    const projects = await prisma.project.findMany({
-      where,
-      include: {
-        developer: true,
-        _count: {
-          select: { inventory: true, leads: true, bookings: true },
+    const cacheKey = `projects:${JSON.stringify(where)}`;
+    const projects = await getOrSetCache(cacheKey, 30000, async () => {
+      return prisma.project.findMany({
+        where,
+        include: {
+          developer: true,
+          _count: {
+            select: { inventory: true, leads: true, bookings: true },
+          },
         },
-      },
-      orderBy: { updatedAt: "desc" },
+        orderBy: { updatedAt: "desc" },
+      });
     });
 
     return successResponse(projects, "Projects retrieved.");

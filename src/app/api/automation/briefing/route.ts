@@ -5,6 +5,7 @@ import { getAuthSession } from "@/lib/auth";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { getDailyAgentBriefing } from "@/lib/automation/daily-briefing";
 import { isAdmin } from "@/lib/rbac";
+import { getOrSetCache } from "@/lib/cache";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,7 +15,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const viewAll = searchParams.get("viewAll") === "true" && isAdmin(session);
 
-    const briefing = await getDailyAgentBriefing(session.id, viewAll);
+    const briefing = await getOrSetCache(`briefing:${session.id}:${viewAll}`, 30000, async () => {
+      return getDailyAgentBriefing(session.id, viewAll);
+    });
+
     return successResponse(briefing);
   } catch (error: any) {
     console.error("GET /api/automation/briefing error:", error);
