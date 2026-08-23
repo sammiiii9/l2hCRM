@@ -45,27 +45,29 @@ export async function POST(req: NextRequest) {
     const cleanedPhone = phone.replace(/[^0-9]/g, "").slice(-10);
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 2. Check for duplicate email or phone
+    // 2. Check for duplicate email or phone (check globally across all records)
     const existing = await prisma.user.findFirst({
       where: {
         OR: [
           { email: normalizedEmail },
           { phone: cleanedPhone },
+          { phone: `+91${cleanedPhone}` },
+          { phone: `+91 ${cleanedPhone}` },
+          { phone: { endsWith: cleanedPhone } },
         ],
-        isDeleted: false,
       },
     });
 
     if (existing) {
       if (existing.status === "PENDING_APPROVAL") {
         return errorResponse(
-          "Your registration is already submitted and currently awaiting admin approval. Please contact your Team Lead.",
+          "Your registration is already submitted and currently awaiting admin approval. Please contact your Team Lead (Shahrukh Ali / Shahnawaz Khan).",
           409,
           { status: ["PENDING_APPROVAL"] }
         );
       }
       return errorResponse(
-        "An account with this email or phone number already exists. Please sign in.",
+        "An account with this email or phone number already exists. Please sign in with your password.",
         409
       );
     }
@@ -190,6 +192,18 @@ export async function POST(req: NextRequest) {
     );
   } catch (error: any) {
     console.error("POST /api/auth/signup error:", error);
+    if (error?.code === "P2002") {
+      const target = error.meta?.target || [];
+      const isPhone = Array.isArray(target) ? target.includes("phone") : String(target).includes("phone");
+      const isEmail = Array.isArray(target) ? target.includes("email") : String(target).includes("email");
+      if (isPhone) {
+        return errorResponse("A user with this phone number is already registered in the system. Please sign in with your credentials.", 409);
+      }
+      if (isEmail) {
+        return errorResponse("A user with this email address is already registered in the system. Please sign in with your credentials.", 409);
+      }
+      return errorResponse("An account with these details already exists. Please sign in.", 409);
+    }
     return errorResponse(error.message || "Failed to process registration.", 500);
   }
 }

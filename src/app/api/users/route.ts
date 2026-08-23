@@ -93,11 +93,10 @@ export async function POST(req: NextRequest) {
 
     const data = parsed.data;
 
-    // Check unique email, phone, staffCode
+    // Check unique email, phone, staffCode (check globally across all records)
     const existing = await prisma.user.findFirst({
       where: {
         OR: [{ email: data.email }, { phone: data.phone }, { staffCode: data.staffCode }],
-        isDeleted: false,
       },
     });
 
@@ -147,8 +146,20 @@ export async function POST(req: NextRequest) {
       undefined,
       201
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("POST /api/users error:", error);
+    if (error?.code === "P2002") {
+      const target = error.meta?.target || [];
+      const isPhone = Array.isArray(target) ? target.includes("phone") : String(target).includes("phone");
+      const isEmail = Array.isArray(target) ? target.includes("email") : String(target).includes("email");
+      if (isPhone) {
+        return errorResponse("A user with this phone number is already registered in the system.", 409);
+      }
+      if (isEmail) {
+        return errorResponse("A user with this email address is already registered in the system.", 409);
+      }
+      return errorResponse("A user with this email, phone, or staff code already exists.", 409);
+    }
     return errorResponse("Failed to create user.", 500);
   }
 }
