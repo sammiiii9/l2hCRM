@@ -30,6 +30,7 @@ async function main() {
   await prisma.rolePermission.deleteMany();
   await prisma.permission.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.team.deleteMany();
   await prisma.role.deleteMany();
   await prisma.systemSetting.deleteMany();
 
@@ -144,21 +145,55 @@ async function main() {
     }
   }
 
-  // 4. Seed Users
+  // 4. Seed Dynamic Teams
+  const execTeam = await prisma.team.create({
+    data: {
+      name: "Executive Leadership",
+      code: "EXEC",
+      description: "Leadership, system administration and strategic management",
+      location: "Noida",
+      isActive: true,
+    },
+  });
+
+  const shahnawazTeam = await prisma.team.create({
+    data: {
+      name: "Team Shahnawaz",
+      code: "TM-SHAHNAWAZ",
+      description: "Commercial & luxury residential advisory team",
+      location: "Greater Noida",
+      isActive: true,
+    },
+  });
+
+  const directTeam = await prisma.team.create({
+    data: {
+      name: "Team Direct Sales",
+      code: "TM-DIRECT",
+      description: "Inbound and digital campaign conversion sales floor",
+      location: "Noida",
+      isActive: true,
+    },
+  });
+
+  // 5. Seed Real Users
   const passwordHash = await bcrypt.hash("admin123", 10);
   const agentPasswordHash = await bcrypt.hash("agent123", 10);
 
-  const adminUser = await prisma.user.create({
+  const shahrukhAdmin = await prisma.user.create({
     data: {
-      name: "Managing Director",
-      email: "admin@l2hcrm.com",
-      phone: "9999900000",
+      name: "Shahrukh Ali",
+      email: "shahrukh@admin.com",
+      phone: "8439654386",
       staffCode: "ADMIN01",
       passwordHash: passwordHash,
       roleId: adminRole.id,
-      designation: "Principal Partner",
-      teamName: "Executive Leadership",
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+      teamId: execTeam.id,
+      teamName: execTeam.name,
+      designation: "Managing Director / Administrator",
+      specializationLocation: "Noida",
+      specializationProperty: "RESIDENTIAL_APARTMENT",
+      maxActiveLeadLoad: 100,
     },
   });
 
@@ -170,12 +205,12 @@ async function main() {
       staffCode: "8439654385",
       passwordHash: agentPasswordHash,
       roleId: adminRole.id,
+      teamId: execTeam.id,
+      teamName: execTeam.name,
       designation: "Team Lead & System Admin",
-      teamName: "Team Adrash",
       specializationLocation: "Noida",
       specializationProperty: "RESIDENTIAL_APARTMENT",
       maxActiveLeadLoad: 50,
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
     },
   });
 
@@ -187,48 +222,19 @@ async function main() {
       staffCode: "SHAHNAWAZ",
       passwordHash: passwordHash,
       roleId: adminRole.id,
+      teamId: shahnawazTeam.id,
+      teamName: shahnawazTeam.name,
       designation: "Team Lead & System Admin",
-      teamName: "Team Shahnawaz",
       specializationLocation: "Greater Noida",
       specializationProperty: "COMMERCIAL",
       maxActiveLeadLoad: 50,
-      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
     },
   });
 
-  const anamikaUser = await prisma.user.create({
-    data: {
-      name: "Anamika Gupta",
-      email: "anamika@l2hcrm.com",
-      phone: "9871122334",
-      staffCode: "AG04",
-      passwordHash: agentPasswordHash,
-      roleId: memberRole.id,
-      designation: "Senior Sales Associate",
-      teamName: "Team Adrash",
-      specializationLocation: "Noida",
-      specializationProperty: "RESIDENTIAL_APARTMENT",
-      maxActiveLeadLoad: 40,
-      avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80",
-    },
-  });
-
-  const sumitUser = await prisma.user.create({
-    data: {
-      name: "Sumit Sharma",
-      email: "sumit@l2hcrm.com",
-      phone: "9818833445",
-      staffCode: "SS05",
-      passwordHash: agentPasswordHash,
-      roleId: memberRole.id,
-      designation: "Closing Specialist",
-      teamName: "Team Shahnawaz",
-      specializationLocation: "Gurugram",
-      specializationProperty: "VILLA",
-      maxActiveLeadLoad: 40,
-      avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80",
-    },
-  });
+  // Link leaders to teams
+  await prisma.team.update({ where: { id: execTeam.id }, data: { leaderId: shahrukhAdmin.id } });
+  await prisma.team.update({ where: { id: shahnawazTeam.id }, data: { leaderId: shahnawazUser.id } });
+  await prisma.team.update({ where: { id: directTeam.id }, data: { leaderId: shahrukhUser.id } });
 
   // 5. Seed Developers & Projects
   const willowDev = await prisma.developer.create({
@@ -708,7 +714,7 @@ async function main() {
       recommendedAction: "Call lead immediately or reassign to available associate",
       linkUrl: `/leads/${rajLead?.id}`,
       status: "OPEN",
-      assignedToId: adminUser.id,
+      assignedToId: shahrukhAdmin.id,
     },
     {
       severity: "WARNING",
@@ -719,7 +725,7 @@ async function main() {
       recommendedAction: "Use Round-Robin or assign directly to Team Lead",
       linkUrl: "/leads",
       status: "OPEN",
-      assignedToId: adminUser.id,
+      assignedToId: shahrukhAdmin.id,
     },
     {
       severity: "INFO",
@@ -730,7 +736,7 @@ async function main() {
       recommendedAction: "Pitch to interested 3BHK prospective buyers",
       linkUrl: "/projects",
       status: "OPEN",
-      assignedToId: adminUser.id,
+      assignedToId: shahrukhAdmin.id,
     },
   ];
 

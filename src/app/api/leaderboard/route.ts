@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
         return {
           id: m.id,
           name: m.name,
-          teamName: m.teamName || "Team Alpha",
+          teamName: m.teamName || "Direct Sales",
           designation: m.designation || "Associate",
           initials,
           bookings,

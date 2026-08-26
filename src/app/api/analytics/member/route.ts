@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
       return {
         hero: {
           userName: user.name,
-          teamName: user.teamName || "Team Adrash",
+          teamName: user.teamName || "Direct Sales",
           designation: user.designation || "Associate",
           leadsInToday,
           yourProspects: myProspects,

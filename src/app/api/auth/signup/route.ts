@@ -95,14 +95,20 @@ export async function POST(req: NextRequest) {
     // 5. Hash password
     const passwordHash = await hashPassword(password);
 
-    // 6. Determine team name
-    const computedTeamName =
+    // 6. Determine team name & teamId
+    let computedTeamName =
       teamName ||
-      (teamLeadName.toLowerCase().includes("shahnawaz")
+      (teamLeadName?.toLowerCase().includes("shahnawaz")
         ? "Team Shahnawaz"
-        : teamLeadName.toLowerCase().includes("shahrukh")
-        ? "Team Adrash"
-        : "Team Alpha");
+        : teamLeadName?.toLowerCase().includes("shahrukh")
+        ? "Executive Leadership"
+        : "Team Direct Sales");
+
+    const matchedTeam = await prisma.team.findFirst({
+      where: { name: { equals: computedTeamName, mode: "insensitive" }, isDeleted: false },
+    });
+    const teamId = matchedTeam?.id || null;
+    if (matchedTeam) computedTeamName = matchedTeam.name;
 
     // 7. Create user with status = 'PENDING_APPROVAL'
     const newUser = await prisma.user.create({
@@ -117,6 +123,7 @@ export async function POST(req: NextRequest) {
         designation,
         dateOfJoining: dateOfJoining ? new Date(dateOfJoining) : new Date(),
         teamLeadName,
+        teamId,
         teamName: computedTeamName,
         specializationLocation,
         authProvider,

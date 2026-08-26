@@ -156,11 +156,17 @@ export async function POST(req: NextRequest) {
     const randomPassword = `google_${Math.random().toString(36).substring(2, 12)}_${Date.now()}`;
     const passwordHash = await hashPassword(randomPassword);
 
-    const computedTeamName = teamLeadName.toLowerCase().includes("shahnawaz")
+    let computedTeamName = teamLeadName.toLowerCase().includes("shahnawaz")
       ? "Team Shahnawaz"
       : teamLeadName.toLowerCase().includes("shahrukh")
-      ? "Team Adrash"
-      : "Team Alpha";
+      ? "Executive Leadership"
+      : "Team Direct Sales";
+
+    const matchedTeam = await prisma.team.findFirst({
+      where: { name: { equals: computedTeamName, mode: "insensitive" }, isDeleted: false },
+    });
+    const teamId = matchedTeam?.id || null;
+    if (matchedTeam) computedTeamName = matchedTeam.name;
 
     const newUser = await prisma.user.create({
       data: {
@@ -175,6 +181,7 @@ export async function POST(req: NextRequest) {
         designation,
         dateOfJoining: dateOfJoining ? new Date(dateOfJoining) : new Date(),
         teamLeadName,
+        teamId,
         teamName: computedTeamName,
         specializationLocation,
         authProvider: "GOOGLE",

@@ -19,7 +19,10 @@ model User {
   roleId        String
   role          Role      @relation(fields: [roleId], references: [id])
   status        String    @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED, PENDING_APPROVAL, REJECTED
-  teamName      String?   @default("Team Alpha")
+  teamName      String?   @default("Direct Sales")
+  teamId        String?
+  team          Team?     @relation("TeamMembers", fields: [teamId], references: [id], onDelete: SetNull)
+  ledTeams      Team[]    @relation("TeamLeader")
   designation   String?   @default("Associate")
   lastLoginAt   DateTime?
   
@@ -64,6 +67,34 @@ model User {
   @@index([email])
   @@index([staffCode])
   @@index([roleId])
+  @@index([teamId])
+  @@index([teamName])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  code        String?  @unique
+  description String?
+  leaderId    String?
+  leader      User?    @relation("TeamLeader", fields: [leaderId], references: [id], onDelete: SetNull)
+  members     User[]   @relation("TeamMembers")
+  location    String?  @default("Noida")
+  isActive    Boolean  @default(true)
+  
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  deletedBy   String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([leaderId])
+  @@index([isActive])
+  @@index([isDeleted])
 }
 
 model Role {

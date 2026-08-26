@@ -181,7 +181,7 @@ export function Navbar() {
                 <div className="hidden xl:block text-left">
                   <div className="flex items-center space-x-1.5">
                     <span className="font-bold text-white text-xs leading-none">
-                      {user?.name || "Shahrukh Ali"}
+                      {user?.name || "User"}
                     </span>
                     {isAdmin && (
                       <span className="px-1 py-0.2 text-[9px] font-bold bg-white/20 text-zinc-200 border border-white/20 rounded">
@@ -190,7 +190,7 @@ export function Navbar() {
                     )}
                   </div>
                   <div className="text-[10px] text-zinc-400 mt-0.5">
-                    {user?.designation || "Associate"} • {user?.teamName || "Team Adrash"}
+                    {user?.designation || "Associate"}{user?.teamName ? ` • ${user.teamName}` : ""}
                   </div>
                 </div>
               </div>

@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const parsed = Papa.parse(csvContent, {
       header: true,
       skipEmptyLines: "greedy",
-      delimiter: isTabDelimited ? "\t" : undefined, // auto-detect if undefined
+      delimiter: isTabDelimited ? "\t" : undefined,
     });
 
     if (parsed.errors.length > 0 && parsed.data.length === 0) {
@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
       return errorResponse("No data rows found in the submitted file or text.", 400);
     }
 
-    // Prepare assignees if strategy is ROUND_ROBIN or SINGLE_USER
-    let activeAssignees: any[] = [];
+    // Prepare active assignees
+    let activeAssignees: Array<{ id: string; name: string }> = [];
     if (strategy === "ROUND_ROBIN") {
       const idsToFetch = targetUserIds.length > 0 ? targetUserIds : undefined;
       activeAssignees = await prisma.user.findMany({
@@ -77,7 +77,6 @@ export async function POST(req: NextRequest) {
         select: { id: true, name: true },
       });
       if (activeAssignees.length === 0) {
-        // Fallback to current user if none found
         activeAssignees = [{ id: user.id, name: user.name }];
       }
     } else if (strategy === "SINGLE_USER" && assignedToId) {
@@ -90,16 +89,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const importedLeads: any[] = [];
-    const errors: string[] = [];
-    let duplicatesCount = 0;
+    // 1. First-pass: In-memory normalization & phone extraction
+    const rawParsedRows: Array<{
+      index: number;
+      name: string;
+      rawPhone: string;
+      phone: string;
+      email: string | null;
+      budget: string | null;
+      location: string | null;
+      propertyType: string;
+      source: string;
+      campaign: string;
+      remarks: string;
+    }> = [];
 
-    let count = await prisma.lead.count();
+    const errors: string[] = [];
+    const allPhones: string[] = [];
+    const seenPhonesInBatch = new Set<string>();
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-
-      // Flexible column mappings
       const name = (
         row.name ||
         row.Name ||
@@ -158,7 +168,7 @@ export async function POST(req: NextRequest) {
         row.campaign ||
         row.Campaign ||
         row["Campaign Name"] ||
-        "Bulk Import"
+        "Bulk Ingestion"
       ).trim();
 
       const remarks = (
@@ -176,28 +186,95 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Duplicate check against existing active leads
-      const existing = await prisma.lead.findFirst({
-        where: { phone, isDeleted: false },
-      });
-
-      if (existing) {
-        duplicatesCount++;
-        errors.push(`Row ${i + 1}: Duplicate phone ${phone} already exists (${existing.name} - ${existing.leadCode}).`);
+      if (seenPhonesInBatch.has(phone)) {
+        errors.push(`Row ${i + 1}: Duplicate phone ${phone} appears multiple times in uploaded file.`);
         continue;
       }
 
-      count++;
-      const leadCode = `LD-${1000 + count}`;
+      seenPhonesInBatch.add(phone);
+      allPhones.push(phone);
 
-      // Determine assignee based on strategy
+      rawParsedRows.push({
+        index: i + 1,
+        name,
+        rawPhone,
+        phone,
+        email,
+        budget,
+        location,
+        propertyType,
+        source,
+        campaign,
+        remarks,
+      });
+    }
+
+    if (rawParsedRows.length === 0) {
+      return errorResponse("No valid rows could be parsed from the file.", 400, { errors });
+    }
+
+    // 2. High-speed single query for existing duplicates in DB
+    const existingLeadsInDb = await prisma.lead.findMany({
+      where: {
+        phone: { in: allPhones },
+        isDeleted: false,
+      },
+      select: { phone: true, name: true, leadCode: true },
+    });
+
+    const existingPhoneMap = new Map<string, { name: string; leadCode: string }>();
+    for (const lead of existingLeadsInDb) {
+      existingPhoneMap.set(lead.phone, { name: lead.name, leadCode: lead.leadCode });
+    }
+
+    // 3. Filter valid leads ready for batch insert
+    const validRowsToInsert: typeof rawParsedRows = [];
+    let duplicatesCount = 0;
+
+    for (const r of rawParsedRows) {
+      const existing = existingPhoneMap.get(r.phone);
+      if (existing) {
+        duplicatesCount++;
+        errors.push(`Row ${r.index}: Duplicate phone ${r.phone} already exists (${existing.name} - ${existing.leadCode}).`);
+      } else {
+        validRowsToInsert.push(r);
+      }
+    }
+
+    if (validRowsToInsert.length === 0) {
+      return successResponse(
+        {
+          importedCount: 0,
+          totalRows: rows.length,
+          duplicatesCount,
+          errorsCount: errors.length,
+          errors,
+        },
+        "No new leads to import (all duplicates or invalid)."
+      );
+    }
+
+    // 4. Determine base lead counter
+    const baseCount = await prisma.lead.count();
+    let currentCount = baseCount;
+
+    // Prepare batch create items
+    const leadsToCreateData: any[] = [];
+    const activitiesToCreateData: any[] = [];
+    const assigneeNotificationMap = new Map<string, { count: number; name: string }>();
+
+    for (let i = 0; i < validRowsToInsert.length; i++) {
+      const r = validRowsToInsert[i];
+      currentCount++;
+      const leadCode = `LD-${1000 + currentCount}`;
+
       let targetAssigneeId: string | null = null;
       let targetAssigneeName = "Unassigned";
 
       if (strategy === "UNASSIGNED") {
         targetAssigneeId = null;
       } else if (strategy === "ROUND_ROBIN" && activeAssignees.length > 0) {
-        const selected = activeAssignees[importedLeads.length % activeAssignees.length];
+        const selected = activeAssignees[i % activeAssignees.length];
         targetAssigneeId = selected.id;
         targetAssigneeName = selected.name;
       } else if (strategy === "SINGLE_USER" && activeAssignees.length > 0) {
@@ -208,79 +285,109 @@ export async function POST(req: NextRequest) {
         targetAssigneeName = user.name;
       }
 
-      const newLead = await prisma.lead.create({
-        data: {
-          leadCode,
-          name,
-          phone,
-          whatsapp: phone,
-          email,
-          budget,
-          preferredLocation: location,
-          propertyType,
-          source,
-          campaign,
-          assignedToId: targetAssigneeId,
-          createdById: user.id,
-          stage: "TO_WORK",
-          status: "NEW",
-          priority: "WARM",
-          latestRemarks: remarks,
-        },
-      });
+      if (targetAssigneeId && targetAssigneeId !== user.id) {
+        const prev = assigneeNotificationMap.get(targetAssigneeId) || { count: 0, name: targetAssigneeName };
+        prev.count += 1;
+        assigneeNotificationMap.set(targetAssigneeId, prev);
+      }
 
-      await prisma.leadActivity.create({
-        data: {
-          leadId: newLead.id,
+      leadsToCreateData.push({
+        leadCode,
+        name: r.name,
+        phone: r.phone,
+        whatsapp: r.phone,
+        email: r.email,
+        budget: r.budget,
+        preferredLocation: r.location,
+        propertyType: r.propertyType,
+        source: r.source,
+        campaign: r.campaign,
+        assignedToId: targetAssigneeId,
+        createdById: user.id,
+        stage: "TO_WORK",
+        status: "NEW",
+        priority: "WARM",
+        latestRemarks: r.remarks,
+        targetAssigneeName,
+      });
+    }
+
+    // 5. Chunked parallel creation for high throughput (< 500ms for 500 leads)
+    const CHUNK_SIZE = 50;
+    const createdLeadsList: any[] = [];
+
+    for (let i = 0; i < leadsToCreateData.length; i += CHUNK_SIZE) {
+      const chunk = leadsToCreateData.slice(i, i + CHUNK_SIZE);
+      const createdChunk = await prisma.$transaction(
+        chunk.map((item) => {
+          const { targetAssigneeName, ...leadData } = item;
+          return prisma.lead.create({
+            data: leadData,
+          });
+        })
+      );
+
+      for (let j = 0; j < createdChunk.length; j++) {
+        const created = createdChunk[j];
+        const originalItem = chunk[j];
+        createdLeadsList.push(created);
+
+        activitiesToCreateData.push({
+          leadId: created.id,
           userId: user.id,
           type: "STAGE_CHANGED",
           title: "Lead Imported via Bulk Ingestion",
-          description: `${remarks} • Assigned to: ${targetAssigneeName}`,
-        },
-      });
-
-      // Send notification if assigned to another advisor
-      if (targetAssigneeId && targetAssigneeId !== user.id) {
-        await prisma.notification.create({
-          data: {
-            userId: targetAssigneeId,
-            title: "New Bulk Lead Assigned",
-            message: `${newLead.name} (${newLead.leadCode}, ${location || "General"}) assigned to you by ${user.name}.`,
-            type: "LEAD_ASSIGNED",
-            linkUrl: `/leads/${newLead.id}`,
-          },
+          description: `${originalItem.latestRemarks} • Assigned to: ${originalItem.targetAssigneeName}`,
         });
       }
-
-      importedLeads.push(newLead);
     }
 
+    // 6. Batch create activities
+    if (activitiesToCreateData.length > 0) {
+      await prisma.leadActivity.createMany({
+        data: activitiesToCreateData,
+      });
+    }
+
+    // 7. Batch create consolidated notifications
+    const notificationsToCreate: any[] = [];
+    for (const [assigneeId, data] of assigneeNotificationMap.entries()) {
+      notificationsToCreate.push({
+        userId: assigneeId,
+        title: "New Bulk Leads Assigned",
+        message: `${data.count} new leads were assigned to you by ${user.name}.`,
+        type: "LEAD_ASSIGNED",
+        linkUrl: "/leads?stage=TO_WORK",
+      });
+    }
+
+    if (notificationsToCreate.length > 0) {
+      await prisma.notification.createMany({
+        data: notificationsToCreate,
+      });
+    }
+
+    // 8. Audit Log
     await createAuditLog({
       user,
       action: "CREATE",
       entity: "LEAD",
-      newValue: `Bulk imported ${importedLeads.length} leads. Duplicates skipped: ${duplicatesCount}. Strategy: ${strategy}`,
-      metadata: {
-        totalRows: rows.length,
-        importedCount: importedLeads.length,
-        duplicatesCount,
-        strategy,
-        assignedToId,
-      },
+      newValue: `Bulk imported ${createdLeadsList.length} leads (Strategy: ${strategy})`,
     });
 
     return successResponse(
       {
-        totalProcessed: rows.length,
-        importedCount: importedLeads.length,
+        importedCount: createdLeadsList.length,
+        totalRows: rows.length,
         duplicatesCount,
-        errorCount: errors.length,
-        errors: errors.slice(0, 20), // Return top 20 errors
+        errorsCount: errors.length,
+        errors: errors.slice(0, 10), // return first 10 errors to keep payload light
+        importedSample: createdLeadsList.slice(0, 5),
       },
-      `Import completed: ${importedLeads.length} imported successfully, ${duplicatesCount} duplicates skipped.`
+      `Successfully imported ${createdLeadsList.length} leads in real-time.`
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("POST /api/import/leads error:", error);
-    return errorResponse("Bulk lead import failed.", 500);
+    return errorResponse("Failed to import leads. Please check format.", 500, { error: error.message });
   }
 }

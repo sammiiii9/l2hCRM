@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Trophy, Calendar, Sparkles, Award, Phone, Users } from "lucide-react";
+import { Trophy, Calendar, Sparkles, Award, Phone, Users, MapPin } from "lucide-react";
 
 export default function LeaderboardPage() {
   const [period, setPeriod] = useState("THIS_MONTH");
@@ -31,7 +31,7 @@ export default function LeaderboardPage() {
   const restOfFloor = data?.restOfFloor || [];
 
   return (
-    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 pb-24">
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -42,7 +42,7 @@ export default function LeaderboardPage() {
             </h1>
           </div>
           <p className="text-xs text-zinc-500 font-light mt-0.5">
-            Results-first rankings — Bookings closed, verified site visits, and qualified call volume.
+            Results-first live rankings — Closed deals, verified site visits, and qualified call volume.
           </p>
         </div>
 
@@ -80,7 +80,7 @@ export default function LeaderboardPage() {
             </h2>
           </div>
           <span className="text-xs text-zinc-400 font-medium">
-            {data?.totalCompetitors || 36} active associates
+            {data?.totalCompetitors || 0} active team members
           </span>
         </div>
 
@@ -89,23 +89,27 @@ export default function LeaderboardPage() {
           {/* 2nd Place (Silver) */}
           <div className="flex flex-col items-center">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-zinc-800 text-white font-serif font-bold text-base sm:text-lg flex items-center justify-center shadow-md mb-2 border-2 border-zinc-600">
-              {podium.second?.initials || "AG"}
+              {podium.second?.initials || "2"}
             </div>
-            <div className="font-serif font-bold text-xs sm:text-sm text-zinc-950 text-center">
-              {podium.second?.name || "Anamika Gupta"}
+            <div className="font-serif font-bold text-xs sm:text-sm text-zinc-950 text-center truncate max-w-[140px]">
+              {podium.second?.name || "Open Spot"}
             </div>
-            <div className="text-[10px] sm:text-xs text-zinc-500 text-center font-light">
-              {podium.second?.teamName || "Team Roshan"}
+            <div className="text-[10px] sm:text-xs text-zinc-500 text-center font-light truncate max-w-[140px]">
+              {podium.second?.teamName || "—"}
             </div>
 
-            <div className="flex items-center space-x-1.5 mt-2 mb-3">
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200 rounded-full flex items-center">
-                📍 {podium.second?.visits || 10}
-              </span>
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200 rounded-full flex items-center">
-                🤝 {podium.second?.meetings || 4}
-              </span>
-            </div>
+            {podium.second ? (
+              <div className="flex items-center space-x-1.5 mt-2 mb-3">
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200 rounded-full flex items-center">
+                  📍 {podium.second.visits || 0}
+                </span>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200 rounded-full flex items-center">
+                  📞 {podium.second.calls || 0}
+                </span>
+              </div>
+            ) : (
+              <div className="text-[10px] text-zinc-400 mt-2 mb-3">Awaiting data</div>
+            )}
 
             {/* Silver Podium Box */}
             <div className="w-full bg-zinc-100 rounded-2xl p-4 text-center border border-zinc-300 shadow-xs h-32 flex flex-col justify-center items-center">
@@ -124,20 +128,24 @@ export default function LeaderboardPage() {
           {/* 1st Place (Gold - Center, Tallest) */}
           <div className="flex flex-col items-center -mt-6">
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black text-white font-serif font-bold text-lg sm:text-xl flex items-center justify-center shadow-lg border-2 border-zinc-400 mb-2">
-              {podium.first?.initials || "SR"}
+              {podium.first?.initials || "1"}
             </div>
-            <div className="font-serif font-bold text-xs sm:text-base text-zinc-950 text-center">
-              {podium.first?.name || "Sumit Rajput"}
+            <div className="font-serif font-bold text-xs sm:text-base text-zinc-950 text-center truncate max-w-[160px]">
+              {podium.first?.name || "Floor Leader"}
             </div>
-            <div className="text-[10px] sm:text-xs text-zinc-500 text-center font-light">
-              {podium.first?.teamName || "Team Sumit"}
+            <div className="text-[10px] sm:text-xs text-zinc-500 text-center font-light truncate max-w-[160px]">
+              {podium.first?.teamName || "—"}
             </div>
 
-            <div className="flex items-center space-x-1 mt-2 mb-3">
-              <span className="px-2.5 py-0.5 text-[11px] font-bold bg-zinc-950 text-white rounded-full flex items-center">
-                🏆 {podium.first?.bookings || 2} Deals
-              </span>
-            </div>
+            {podium.first ? (
+              <div className="flex items-center space-x-1 mt-2 mb-3">
+                <span className="px-2.5 py-0.5 text-[11px] font-bold bg-zinc-950 text-white rounded-full flex items-center">
+                  🏆 {podium.first.bookings || 0} Deals Won
+                </span>
+              </div>
+            ) : (
+              <div className="text-[10px] text-zinc-400 mt-2 mb-3">Awaiting data</div>
+            )}
 
             {/* Gold Podium Box */}
             <div className="w-full bg-zinc-950 text-white rounded-2xl p-5 text-center border border-black shadow-md h-40 flex flex-col justify-center items-center">
@@ -145,7 +153,7 @@ export default function LeaderboardPage() {
                 1
               </div>
               <div className="text-3xl sm:text-4xl font-mono font-bold text-white">
-                {podium.first?.bookings || 2}
+                {podium.first?.bookings || 0}
               </div>
               <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                 Bookings Closed
@@ -156,23 +164,27 @@ export default function LeaderboardPage() {
           {/* 3rd Place (Bronze) */}
           <div className="flex flex-col items-center">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-zinc-700 text-white font-serif font-bold text-base sm:text-lg flex items-center justify-center shadow-md mb-2 border-2 border-zinc-500">
-              {podium.third?.initials || "AK"}
+              {podium.third?.initials || "3"}
             </div>
-            <div className="font-serif font-bold text-xs sm:text-sm text-zinc-950 text-center">
-              {podium.third?.name || "Ashok Kumar Tiwary"}
+            <div className="font-serif font-bold text-xs sm:text-sm text-zinc-950 text-center truncate max-w-[140px]">
+              {podium.third?.name || "Open Spot"}
             </div>
-            <div className="text-[10px] sm:text-xs text-zinc-500 text-center font-light">
-              {podium.third?.teamName || "Team Shivesh"}
+            <div className="text-[10px] sm:text-xs text-zinc-500 text-center font-light truncate max-w-[140px]">
+              {podium.third?.teamName || "—"}
             </div>
 
-            <div className="flex items-center space-x-1.5 mt-2 mb-3">
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200 rounded-full flex items-center">
-                📍 {podium.third?.visits || 10}
-              </span>
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200 rounded-full flex items-center">
-                🤝 {podium.third?.meetings || 4}
-              </span>
-            </div>
+            {podium.third ? (
+              <div className="flex items-center space-x-1.5 mt-2 mb-3">
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200 rounded-full flex items-center">
+                  📍 {podium.third.visits || 0}
+                </span>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200 rounded-full flex items-center">
+                  📞 {podium.third.calls || 0}
+                </span>
+              </div>
+            ) : (
+              <div className="text-[10px] text-zinc-400 mt-2 mb-3">Awaiting data</div>
+            )}
 
             {/* Bronze Podium Box */}
             <div className="w-full bg-zinc-100 rounded-2xl p-4 text-center border border-zinc-300 shadow-xs h-32 flex flex-col justify-center items-center">
@@ -242,63 +254,29 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
-      {/* 4. Weighted Priority Hierarchy & Tie-Breaking Rules */}
+      {/* 4. Real-Time Ranking Rules */}
       <div className="bg-white rounded-3xl p-6 border border-zinc-200/90 shadow-sm space-y-4">
         <div className="flex items-center space-x-2">
           <Sparkles className="w-4 h-4 text-zinc-900" />
           <h3 className="font-serif font-bold text-base text-zinc-950">
-            Real-Time Ranking Rules & Weighted Priority Hierarchy
+            Real-Time Ranking Rules & Hierarchy
           </h3>
         </div>
-        <p className="text-xs text-zinc-500 font-light">
-          The leaderboard ranks associates dynamically upon every call logged, site visit scheduled, or booking closed.
-        </p>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-zinc-200 text-xs">
-            <thead className="bg-zinc-50 font-bold uppercase tracking-wider text-zinc-500 text-[10px]">
-              <tr>
-                <th className="py-3 px-4 text-left">Rank Priority</th>
-                <th className="py-3 px-4 text-left">Metric / Event</th>
-                <th className="py-3 px-4 text-left">Weightage Rule</th>
-                <th className="py-3 px-4 text-left">Example Scenario</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 text-zinc-700">
-              <tr className="bg-zinc-50/50">
-                <td className="py-3 px-4 font-bold text-zinc-950">Tier 1 (Highest)</td>
-                <td className="py-3 px-4 font-serif font-bold text-zinc-950">Closed Booking 🏆</td>
-                <td className="py-3 px-4 text-zinc-600 font-light">Overrides all visits and calls</td>
-                <td className="py-3 px-4 font-mono text-[11px] text-zinc-900 font-semibold">1 Booking beats 5 Visits / 400 Calls</td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 font-bold text-zinc-800">Tier 2</td>
-                <td className="py-3 px-4 font-serif font-bold text-zinc-950">Site Visit / Meeting 📍</td>
-                <td className="py-3 px-4 text-zinc-600 font-light">Overrides higher call counts without visits</td>
-                <td className="py-3 px-4 font-mono text-[11px] text-zinc-900 font-semibold">1 Visit + 250 Calls beats 350 Calls (0 Visits)</td>
-              </tr>
-              <tr className="bg-zinc-50/50">
-                <td className="py-3 px-4 font-bold text-zinc-600">Tier 3</td>
-                <td className="py-3 px-4 font-serif font-bold text-zinc-950">Total Calls Logged 📞</td>
-                <td className="py-3 px-4 text-zinc-600 font-light">Deciding factor when bookings & visits are equal</td>
-                <td className="py-3 px-4 font-mono text-[11px] text-zinc-900 font-semibold">350 Calls beats 300 Calls</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-200 text-xs text-zinc-900 space-y-1">
-          <div className="font-bold flex items-center space-x-1.5 text-zinc-950">
-            <span>⚖️</span>
-            <span>Tie-Breaking Logic:</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200/80 text-xs space-y-1">
+            <span className="font-bold text-zinc-900">Tier 1: Closed Bookings</span>
+            <p className="text-zinc-500 text-[11px]">Primary ranking metric. Overrides visits and calls.</p>
           </div>
-          <ul className="list-disc list-inside space-y-0.5 text-[11px] text-zinc-700 pl-1 font-light">
-            <li>If bookings are equal, higher site visits & meetings take precedence.</li>
-            <li>If visits are equal, higher total call volume breaks the tie.</li>
-          </ul>
+          <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200/80 text-xs space-y-1">
+            <span className="font-bold text-zinc-900">Tier 2: Verified Site Visits</span>
+            <p className="text-zinc-500 text-[11px]">Tie-breaker for equal booking count.</p>
+          </div>
+          <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200/80 text-xs space-y-1">
+            <span className="font-bold text-zinc-900">Tier 3: Total Calls Made</span>
+            <p className="text-zinc-500 text-[11px]">Final tie-breaker for equal bookings and visits.</p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-

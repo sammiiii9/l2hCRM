@@ -15,9 +15,13 @@ const createUserSchema = z.object({
   staffCode: z.string().min(2, "Staff code required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   roleId: z.string().min(1, "Role is required"),
-  teamName: z.string().default("Team Alpha"),
+  teamName: z.string().default("Direct Sales"),
+  teamId: z.string().optional().nullable(),
   designation: z.string().default("Associate"),
-  status: z.enum(["ACTIVE", "INACTIVE", "SUSPENDED"]).default("ACTIVE"),
+  status: z.enum(["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING_APPROVAL"]).default("ACTIVE"),
+  specializationLocation: z.string().default("Noida"),
+  specializationProperty: z.string().default("RESIDENTIAL_APARTMENT"),
+  maxActiveLeadLoad: z.number().default(50),
 });
 
 export async function GET(req: NextRequest) {
@@ -106,19 +110,34 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await hashPassword(data.password);
 
+    // If teamId provided, fetch teamName or vice versa
+    let teamName = data.teamName;
+    let teamId = data.teamId || null;
+    if (teamId) {
+      const foundTeam = await prisma.team.findUnique({ where: { id: teamId } });
+      if (foundTeam) teamName = foundTeam.name;
+    } else if (teamName) {
+      const foundTeam = await prisma.team.findFirst({ where: { name: { equals: teamName, mode: "insensitive" } } });
+      if (foundTeam) teamId = foundTeam.id;
+    }
+
     const newUser = await prisma.user.create({
       data: {
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        staffCode: data.staffCode,
+        name: data.name.trim(),
+        email: data.email.trim().toLowerCase(),
+        phone: data.phone.trim(),
+        staffCode: data.staffCode.trim(),
         passwordHash,
         roleId: data.roleId,
-        teamName: data.teamName,
+        teamId,
+        teamName,
         designation: data.designation,
         status: data.status,
+        specializationLocation: data.specializationLocation,
+        specializationProperty: data.specializationProperty,
+        maxActiveLeadLoad: data.maxActiveLeadLoad,
       },
-      include: { role: true },
+      include: { role: true, team: true },
     });
 
     await createAuditLog({
@@ -138,9 +157,13 @@ export async function POST(req: NextRequest) {
         phone: newUser.phone,
         staffCode: newUser.staffCode,
         role: newUser.role,
+        team: newUser.team,
         teamName: newUser.teamName,
         designation: newUser.designation,
         status: newUser.status,
+        specializationLocation: newUser.specializationLocation,
+        specializationProperty: newUser.specializationProperty,
+        maxActiveLeadLoad: newUser.maxActiveLeadLoad,
       },
       "Staff account created successfully.",
       undefined,

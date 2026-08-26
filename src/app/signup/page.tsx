@@ -212,7 +212,7 @@ export default function SignupPage() {
                   Registration Submitted!
                 </h2>
                 <p className="text-xs sm:text-sm text-zinc-600 max-w-md mx-auto">
-                  Your account has been created and is currently <span className="font-bold text-amber-700">pending review and approval</span> by Team Leads (Shahrukh Ali / Shahnawaz Khan).
+                  Your account has been created and is currently <span className="font-bold text-amber-700">pending review and approval</span> by Team Leads / Administrators.
                 </p>
               </div>
 
@@ -442,8 +442,9 @@ export default function SignupPage() {
                       onChange={handleChange}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 focus:outline-none focus:ring-2 focus:ring-black focus:border-black text-xs transition bg-white"
                     >
-                      <option value="Shahrukh Ali">Shahrukh Ali (Team Adrash)</option>
+                      <option value="Shahrukh Ali">Shahrukh Ali (Executive Leadership)</option>
                       <option value="Shahnawaz Khan">Shahnawaz Khan (Team Shahnawaz)</option>
+                      <option value="Team Direct Sales">Team Direct Sales</option>
                       <option value="Management / Head Office">Management / Head Office</option>
                     </select>
                   </div>

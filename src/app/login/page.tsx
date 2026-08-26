@@ -243,7 +243,7 @@ export default function LoginPage() {
             </div>
 
             <p className="text-center text-[11px] text-zinc-400">
-              Protected by L2H Role-Based Access Control (RBAC).
+              Protected by L2H Enterprise Security Protocols.
             </p>
           </form>
         </div>

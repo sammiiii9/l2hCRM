@@ -62,10 +62,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       delete updateData.password;
     }
 
+    // Sync teamId <-> teamName if updated
+    if (body.teamId) {
+      const team = await prisma.team.findUnique({ where: { id: body.teamId } });
+      if (team) {
+        updateData.teamName = team.name;
+        updateData.teamId = team.id;
+      }
+    } else if (body.teamName) {
+      const team = await prisma.team.findFirst({
+        where: { name: { equals: body.teamName, mode: "insensitive" }, isDeleted: false },
+      });
+      if (team) {
+        updateData.teamId = team.id;
+      }
+    }
+
     const updated = await prisma.user.update({
       where: { id: params.id },
       data: updateData,
-      include: { role: true },
+      include: { role: true, team: true },
     });
 
     await createAuditLog({
@@ -75,7 +91,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       entityId: updated.id,
       entityCode: updated.staffCode || updated.email,
       fieldChanged: Object.keys(body).join(", "),
-      newValue: body.status ? `Status changed to ${body.status}` : "Profile updated",
+      newValue: body.status ? `Status changed to ${body.status}` : `Updated user ${updated.name}`,
     });
 
     return successResponse(
@@ -86,9 +102,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         phone: updated.phone,
         staffCode: updated.staffCode,
         role: updated.role,
+        team: updated.team,
+        teamId: updated.teamId,
         teamName: updated.teamName,
         designation: updated.designation,
         status: updated.status,
+        specializationLocation: updated.specializationLocation,
+        specializationProperty: updated.specializationProperty,
+        maxActiveLeadLoad: updated.maxActiveLeadLoad,
       },
       "Staff account updated successfully."
     );
@@ -111,26 +132,57 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       return errorResponse("You cannot delete your own administrator account.", 400);
     }
 
-    const deleted = await prisma.user.update({
-      where: { id: params.id },
-      data: {
-        isDeleted: true,
-        deletedAt: new Date(),
-        deletedBy: user.name,
-        status: "INACTIVE",
-      },
-    });
+    const { searchParams } = new URL(req.url);
+    const permanent = searchParams.get("permanent") === "true";
 
-    await createAuditLog({
-      user,
-      action: "DELETE",
-      entity: "USER",
-      entityId: deleted.id,
-      entityCode: deleted.staffCode || deleted.email,
-      newValue: `Soft deleted staff account ${deleted.name}`,
-    });
+    const targetUser = await prisma.user.findUnique({ where: { id: params.id } });
+    if (!targetUser) return notFoundResponse("User not found.");
 
-    return successResponse(null, "Staff account moved to recycle bin.");
+    if (permanent) {
+      // Reassign or unassign user's leads first
+      await prisma.lead.updateMany({
+        where: { assignedToId: params.id },
+        data: { assignedToId: null },
+      });
+      await prisma.followUp.deleteMany({ where: { assignedToId: params.id } });
+      await prisma.notification.deleteMany({ where: { userId: params.id } });
+      await prisma.dailyActivityReport.deleteMany({ where: { userId: params.id } });
+      await prisma.userPermission.deleteMany({ where: { userId: params.id } });
+
+      await prisma.user.delete({ where: { id: params.id } });
+
+      await createAuditLog({
+        user,
+        action: "DELETE",
+        entity: "USER",
+        entityId: params.id,
+        entityCode: targetUser.staffCode || targetUser.email,
+        newValue: `Permanently purged staff account ${targetUser.name}`,
+      });
+
+      return successResponse(null, "Staff account permanently deleted.");
+    } else {
+      const deleted = await prisma.user.update({
+        where: { id: params.id },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedBy: user.name,
+          status: "INACTIVE",
+        },
+      });
+
+      await createAuditLog({
+        user,
+        action: "DELETE",
+        entity: "USER",
+        entityId: deleted.id,
+        entityCode: deleted.staffCode || deleted.email,
+        newValue: `Soft deleted staff account ${deleted.name}`,
+      });
+
+      return successResponse(null, "Staff account moved to recycle bin.");
+    }
   } catch (error) {
     console.error("DELETE /api/users/[id] error:", error);
     return errorResponse("Failed to delete user.", 500);
