@@ -13,6 +13,7 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "db:setup": "prisma db push && tsx prisma/seed.ts",
     "credentials:update": "tsx scripts/update-credentials.ts",
+    "git:push": "tsx scripts/git-sync.ts",
     "test": "tsx src/test/run-tests.ts"
   },
   "keywords": [],
