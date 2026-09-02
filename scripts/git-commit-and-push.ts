@@ -5,11 +5,7 @@ import http from "isomorphic-git/http/node";
 
 async function commitAndPush() {
   const dir = path.resolve(".");
-  const token = process.argv[2];
-
-  if (!token) {
-    throw new Error("No token provided");
-  }
+  const token = process.env.GITHUB_TOKEN || process.argv[2];
 
   const ignorePatterns = [
     "node_modules",
@@ -19,6 +15,7 @@ async function commitAndPush() {
     ".env",
     "tsconfig.tsbuildinfo",
     ".git",
+    "scripts/git-commit-and-push.ts",
   ];
 
   function getFiles(currentDir: string, relativePath = ""): string[] {
@@ -52,12 +49,17 @@ async function commitAndPush() {
     fs,
     dir,
     author: {
-      name: "L2H Team",
-      email: "admin@l2hsolution.com",
+      name: "sammiiii9",
+      email: "119938641+sammiiii9@users.noreply.github.com",
     },
-    message: "feat: configure PostgreSQL & Supabase connection pooling for Vercel production deployment",
+    message: "feat: implement admin teams & members CRUD, purge demo data, optimize lead ingestion, and clean UI",
   });
   console.log("✓ Created commit:", sha);
+
+  if (!token) {
+    console.log("ℹ️ No GITHUB_TOKEN provided. Commit created locally. Pass your token as an argument to push to GitHub remote.");
+    return;
+  }
 
   console.log("Pushing to GitHub origin/main...");
   const pushResult = await git.push({
@@ -66,14 +68,14 @@ async function commitAndPush() {
     dir,
     remote: "origin",
     ref: "main",
-    force: true,
+    force: false,
     onAuth: () => ({
       username: token,
       password: "",
     }),
   });
 
-  console.log("✓ Push successful!", pushResult);
+  console.log("✓ Push to GitHub successful!", pushResult);
 }
 
 commitAndPush().catch((err) => {
