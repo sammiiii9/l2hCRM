@@ -16,6 +16,8 @@ const createTeamSchema = z.object({
   location: z.string().default("Noida"),
 });
 
+import { getOrSetCache, invalidateCache } from "@/lib/cache";
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -24,69 +26,72 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const includeInactive = searchParams.get("includeInactive") === "true";
 
-    const teams = await prisma.team.findMany({
-      where: {
-        isDeleted: false,
-        ...(includeInactive ? {} : { isActive: true }),
-      },
-      include: {
-        leader: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            staffCode: true,
-            avatar: true,
-            designation: true,
-          },
+    const cacheKey = `teams:${includeInactive}`;
+    const formattedTeams = await getOrSetCache(cacheKey, 30000, async () => {
+      const teams = await prisma.team.findMany({
+        where: {
+          isDeleted: false,
+          ...(includeInactive ? {} : { isActive: true }),
         },
-        members: {
-          where: { isDeleted: false },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            staffCode: true,
-            avatar: true,
-            designation: true,
-            status: true,
-            role: { select: { id: true, name: true, slug: true } },
-            _count: {
-              select: {
-                assignedLeads: { where: { isDeleted: false } },
-                assignedBookings: { where: { isDeleted: false } },
+        include: {
+          leader: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              staffCode: true,
+              avatar: true,
+              designation: true,
+            },
+          },
+          members: {
+            where: { isDeleted: false },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              staffCode: true,
+              avatar: true,
+              designation: true,
+              status: true,
+              role: { select: { id: true, name: true, slug: true } },
+              _count: {
+                select: {
+                  assignedLeads: { where: { isDeleted: false } },
+                  assignedBookings: { where: { isDeleted: false } },
+                },
               },
             },
           },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+        orderBy: { createdAt: "asc" },
+      });
 
-    const formattedTeams = teams.map((team) => {
-      const totalLeads = team.members.reduce((acc, m) => acc + (m._count?.assignedLeads || 0), 0);
-      const totalBookings = team.members.reduce((acc, m) => acc + (m._count?.assignedBookings || 0), 0);
+      return teams.map((team) => {
+        const totalLeads = team.members.reduce((acc, m) => acc + (m._count?.assignedLeads || 0), 0);
+        const totalBookings = team.members.reduce((acc, m) => acc + (m._count?.assignedBookings || 0), 0);
 
-      return {
-        id: team.id,
-        name: team.name,
-        code: team.code,
-        description: team.description,
-        location: team.location,
-        isActive: team.isActive,
-        createdAt: team.createdAt,
-        updatedAt: team.updatedAt,
-        leader: team.leader,
-        leaderId: team.leaderId,
-        memberCount: team.members.length,
-        members: team.members,
-        stats: {
-          totalLeads,
-          totalBookings,
-        },
-      };
+        return {
+          id: team.id,
+          name: team.name,
+          code: team.code,
+          description: team.description,
+          location: team.location,
+          isActive: team.isActive,
+          createdAt: team.createdAt,
+          updatedAt: team.updatedAt,
+          leader: team.leader,
+          leaderId: team.leaderId,
+          memberCount: team.members.length,
+          members: team.members,
+          stats: {
+            totalLeads,
+            totalBookings,
+          },
+        };
+      });
     });
 
     return successResponse(formattedTeams, "Teams retrieved successfully.");
@@ -156,6 +161,8 @@ export async function POST(req: NextRequest) {
       entityCode: newTeam.code || newTeam.name,
       newValue: `Created new Team "${newTeam.name}" (Leader: ${newTeam.leader?.name || "Unassigned"})`,
     });
+
+    invalidateCache("teams");
 
     return successResponse(newTeam, "Team created successfully.", undefined, 201);
   } catch (error: any) {

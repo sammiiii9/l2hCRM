@@ -24,6 +24,8 @@ const createUserSchema = z.object({
   maxActiveLeadLoad: z.number().default(50),
 });
 
+import { getOrSetCache, invalidateCache } from "@/lib/cache";
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -47,30 +49,33 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const users = await prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        staffCode: true,
-        role: { select: { id: true, name: true, slug: true } },
-        status: true,
-        teamName: true,
-        designation: true,
-        dateOfJoining: true,
-        teamLeadName: true,
-        authProvider: true,
-        approvalNotes: true,
-        approvedAt: true,
-        lastLoginAt: true,
-        createdAt: true,
-        _count: {
-          select: { assignedLeads: true, assignedBookings: true, callLogs: true },
+    const cacheKey = `users:${JSON.stringify(where)}`;
+    const users = await getOrSetCache(cacheKey, 30000, async () => {
+      return prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          staffCode: true,
+          role: { select: { id: true, name: true, slug: true } },
+          status: true,
+          teamName: true,
+          designation: true,
+          dateOfJoining: true,
+          teamLeadName: true,
+          authProvider: true,
+          approvalNotes: true,
+          approvedAt: true,
+          lastLoginAt: true,
+          createdAt: true,
+          _count: {
+            select: { assignedLeads: true, assignedBookings: true, callLogs: true },
+          },
         },
-      },
-      orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: "desc" },
+      });
     });
 
     return successResponse(users, "Users retrieved.");
@@ -148,6 +153,8 @@ export async function POST(req: NextRequest) {
       entityCode: newUser.staffCode || newUser.email,
       newValue: `Created staff member ${newUser.name} with role ${newUser.role.name}`,
     });
+
+    invalidateCache("users");
 
     return successResponse(
       {

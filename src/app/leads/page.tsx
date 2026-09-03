@@ -34,11 +34,16 @@ import { CreateLeadModal } from "@/components/ui/CreateLeadModal";
 import { ImportLeadsModal } from "@/components/ui/ImportLeadsModal";
 import { AssignLeadsModal } from "@/components/ui/AssignLeadsModal";
 import { formatINR, formatRelativeTime, maskPhoneNumber, getWhatsAppUrl } from "@/lib/utils";
+import { LeadCardSkeleton } from "@/components/ui/Skeleton";
+import { TopProgressBar } from "@/components/ui/TopProgressBar";
 
-function LeadsContent() {
-  const { user, isAdmin } = useAuth();
+// Memory cache for instant stage switching
+const stageCache = new Map<string, { leads: any[]; counts: any; timestamp: number }>();
+
+export default function LeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, isAdmin } = useAuth();
 
   const [leads, setLeads] = useState<any[]>([]);
   const [counts, setCounts] = useState({
@@ -50,6 +55,7 @@ function LeadsContent() {
     totalAll: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [isRevalidating, setIsRevalidating] = useState(false);
 
   // Filters
   const [activeStage, setActiveStage] = useState<string>(searchParams.get("stage") || "ALL");
@@ -72,9 +78,38 @@ function LeadsContent() {
   const [assignTargetLeadNames, setAssignTargetLeadNames] = useState<string[]>([]);
   const [addLeadDropdownOpen, setAddLeadDropdownOpen] = useState(false);
 
-  const fetchLeads = async () => {
+  const prefetchStage = async (stage: string) => {
+    const cacheKey = `stage:${stage}`;
+    if (stageCache.has(cacheKey)) return;
     try {
-      setLoading(true);
+      const res = await fetch(`/api/leads?stage=${stage}`);
+      const data = await res.json();
+      if (data.success) {
+        stageCache.set(cacheKey, {
+          leads: data.data || [],
+          counts: data.meta?.counts || counts,
+          timestamp: Date.now(),
+        });
+      }
+    } catch (e) {}
+  };
+
+  const fetchLeads = async (force: boolean = false) => {
+    const cacheKey = `stage:${activeStage}:${searchQuery}`;
+    const cached = stageCache.get(cacheKey);
+
+    // Instant optimistic render from cache
+    if (cached && !force) {
+      setLeads(cached.leads);
+      if (cached.counts) setCounts(cached.counts);
+      setLoading(false);
+      setIsRevalidating(true);
+    } else {
+      if (leads.length === 0) setLoading(true);
+      else setIsRevalidating(true);
+    }
+
+    try {
       let url = `/api/leads?stage=${activeStage}`;
       if (searchQuery) url += `&q=${encodeURIComponent(searchQuery)}`;
       const res = await fetch(url);
@@ -84,11 +119,17 @@ function LeadsContent() {
         if (data.meta?.counts) {
           setCounts(data.meta.counts);
         }
+        stageCache.set(cacheKey, {
+          leads: data.data || [],
+          counts: data.meta?.counts || counts,
+          timestamp: Date.now(),
+        });
       }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+      setIsRevalidating(false);
     }
   };
 
@@ -154,7 +195,8 @@ function LeadsContent() {
   ];
 
   return (
-    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 pb-24">
+    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 pb-24 relative">
+      <TopProgressBar isFetching={isRevalidating} />
       {/* 1. Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -272,6 +314,7 @@ function LeadsContent() {
             <button
               key={s.key}
               onClick={() => setActiveStage(isSelected ? "ALL" : s.key)}
+              onMouseEnter={() => prefetchStage(s.key)}
               className={`bg-white p-4 sm:p-5 rounded-2xl border transition-all text-left shadow-sm ${
                 isSelected
                   ? "border-black ring-1 ring-black shadow-md bg-zinc-50/50"
@@ -295,6 +338,7 @@ function LeadsContent() {
             <button
               key={st}
               onClick={() => setActiveStage(st)}
+              onMouseEnter={() => prefetchStage(st)}
               className={`px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider rounded-xl whitespace-nowrap transition ${
                 activeStage === st
                   ? "bg-black text-white shadow-sm"
@@ -330,8 +374,11 @@ function LeadsContent() {
 
       {/* 4. Leads Content (FEED / TABLE / KANBAN) */}
       {loading ? (
-        <div className="py-16 text-center text-xs text-zinc-400 font-semibold uppercase tracking-widest animate-pulse">
-          Loading leads database...
+        <div className="space-y-3.5 py-2">
+          <LeadCardSkeleton />
+          <LeadCardSkeleton />
+          <LeadCardSkeleton />
+          <LeadCardSkeleton />
         </div>
       ) : leads.length === 0 ? (
         <div className="bg-white rounded-3xl p-12 text-center border border-zinc-200 shadow-sm space-y-3">

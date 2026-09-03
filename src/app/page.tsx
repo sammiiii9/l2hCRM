@@ -31,15 +31,37 @@ import { DailyActivityReportModal } from "@/components/ui/DailyActivityReportMod
 import { formatINR, formatRelativeTime, maskPhoneNumber, getWhatsAppUrl } from "@/lib/utils";
 import Link from "next/link";
 
+import { TopProgressBar } from "@/components/ui/TopProgressBar";
+
 export default function HomePage() {
   const { user, loading, isAdmin } = useAuth();
   const router = useRouter();
 
-  const [analytics, setAnalytics] = useState<any>(null);
-  const [briefing, setBriefing] = useState<any>(null);
+  // Instant optimistic state hydration from local cache
+  const [analytics, setAnalytics] = useState<any>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = sessionStorage.getItem("l2h_home_analytics");
+        return cached ? JSON.parse(cached) : null;
+      } catch (e) {}
+    }
+    return null;
+  });
+
+  const [briefing, setBriefing] = useState<any>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = sessionStorage.getItem("l2h_home_briefing");
+        return cached ? JSON.parse(cached) : null;
+      } catch (e) {}
+    }
+    return null;
+  });
+
   const [darStatus, setDarStatus] = useState<any>(null);
   const [darModalOpen, setDarModalOpen] = useState(false);
-  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [isRevalidating, setIsRevalidating] = useState(false);
   const [activeCallLead, setActiveCallLead] = useState<any>(null);
 
   const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set());
@@ -55,7 +77,7 @@ export default function HomePage() {
 
   const fetchDashboardData = async () => {
     try {
-      setLoadingStats(true);
+      setIsRevalidating(true);
       const [resAnalytics, resBriefing, resDar] = await Promise.all([
         fetch("/api/analytics/member"),
         fetch("/api/automation/briefing"),
@@ -65,11 +87,17 @@ export default function HomePage() {
       const dataAnalytics = await resAnalytics.json();
       if (dataAnalytics.success) {
         setAnalytics(dataAnalytics.data);
+        try {
+          sessionStorage.setItem("l2h_home_analytics", JSON.stringify(dataAnalytics.data));
+        } catch (e) {}
       }
 
       const dataBriefing = await resBriefing.json();
       if (dataBriefing.success) {
         setBriefing(dataBriefing.data);
+        try {
+          sessionStorage.setItem("l2h_home_briefing", JSON.stringify(dataBriefing.data));
+        } catch (e) {}
       }
 
       const dataDar = await resDar.json();
@@ -79,6 +107,7 @@ export default function HomePage() {
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
+      setIsRevalidating(false);
       setLoadingStats(false);
     }
   };
@@ -93,7 +122,7 @@ export default function HomePage() {
     }
   }, [user, loading]);
 
-  if (loading || !user) {
+  if (loading && !user) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
         <div className="text-xs text-zinc-400 uppercase tracking-widest font-semibold animate-pulse">
@@ -172,7 +201,8 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 relative">
+      <TopProgressBar isFetching={isRevalidating} />
       {/* 1. L2H Command Center Hero Card */}
       <div className="l2h-hero-card rounded-3xl p-6 sm:p-8 text-white shadow-2xl">
         <div className="relative z-10">
